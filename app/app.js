@@ -15,6 +15,10 @@ const BASEURL = process.env.BASEURL;
 const EMAIL = process.env.EMAIL;
 const PASSWORD = process.env.PASSWORD;
 
+const LEADER_GROUP_TYPE_ROLE_IDS = process.env.LEADER_GROUP_TYPE_ROLE_IDS
+	? process.env.LEADER_GROUP_TYPE_ROLE_IDS.split(',').map(Number)
+	: [];
+
 if (!BASEURL) {
 	throw new Error("No env BASEURL set");
 }
@@ -106,10 +110,13 @@ function traverseGroup(group, hierarchies, persons, relations) {
 		filtered.forEach(element => groupObject.children.push(traverseGroup(element, hierarchies, persons, relations)));
 	});
 
-	relations.filter(relation => relation.groupId === group.groupId).forEach(relation => {
+	relations
+		.filter(relation => LEADER_GROUP_TYPE_ROLE_IDS.includes(relation.groupTypeRoleId))
+		.filter(relation => relation.groupId === group.groupId)
+		.forEach(relation => {
 		var personData = persons.filter(person => person.id === relation.personId)[0];
 		if(personData != undefined){
-			groupObject.persons.push(new Person(personData.id, personData.firstName, personData.lastName));
+			groupObject.persons.push(new Person(personData.id, personData.firstName, personData.lastName, relation.groupTypeRoleId));
 		}
 	});
 
