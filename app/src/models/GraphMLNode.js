@@ -10,4 +10,4 @@ class GraphMLNode {
     }
 }
 
-module.exports = GraphMLNode;
+export default GraphMLNode;

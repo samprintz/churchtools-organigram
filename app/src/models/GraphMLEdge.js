@@ -9,4 +9,4 @@ class GraphMLEdge {
     }
 }
 
-module.exports = GraphMLEdge;
+export default GraphMLEdge;

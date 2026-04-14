@@ -1,19 +1,15 @@
-const {
-	churchtoolsClient,
-	activateLogging,
-	LOG_LEVEL_ERROR,
-	errorHelper
-} = require('@churchtools/churchtools-client');
-const axiosCookieJarSupport = require('axios-cookiejar-support');
-const tough = require('tough-cookie');
-const fs = require('fs');
-require('dotenv').config();
+import ct from '@churchtools/churchtools-client';
+import axiosCookieJarSupport from 'axios-cookiejar-support';
+import tough from 'tough-cookie';
+import fs from 'fs';
 
-const Group = require('./src/models/Group');
-const Person = require('./src/models/Person');
-const GraphMLGraph = require('./src/models/GraphMLGraph');
-const GraphMLNode = require('./src/models/GraphMLNode');
-const GraphMLEdge = require('./src/models/GraphMLEdge');
+import Group from "./src/models/Group.js";
+import Person from "./src/models/Person.js";
+import GraphMLGraph from "./src/models/GraphMLGraph.js";
+import GraphMLNode from "./src/models/GraphMLNode.js";
+import GraphMLEdge from "./src/models/GraphMLEdge.js";
+
+import "dotenv/config.js";
 
 const BASEURL = process.env.BASEURL;
 const EMAIL = process.env.EMAIL;
@@ -32,13 +28,13 @@ if (!PASSWORD) {
 }
 
 function initChurchToolsClient() {
-	churchtoolsClient.setCookieJar(axiosCookieJarSupport.default, new tough.CookieJar());
-	churchtoolsClient.setBaseUrl(BASEURL);
-	activateLogging(LOG_LEVEL_ERROR);
+	ct.churchtoolsClient.setCookieJar(axiosCookieJarSupport.default, new tough.CookieJar());
+	ct.churchtoolsClient.setBaseUrl(BASEURL);
+	ct.activateLogging(ct.LOG_LEVEL_ERROR);
 }
 
 function login(username, password) {
-	return churchtoolsClient.post('/login', {
+	return ct.churchtoolsClient.post('/login', {
 		username,
 		password
 	});
@@ -57,23 +53,23 @@ function getData() {
 	var relations;
 	var hierarchies;
 
-	churchtoolsClient.get('/groups').then(groups => {
-		this.groups = groups;
+	ct.churchtoolsClient.get('/groups').then(groupsResult => {
+		groups = groupsResult;
 
-		churchtoolsClient.get('/persons', {
+		ct.churchtoolsClient.get('/persons', {
 			"limit": 500
-		}).then(persons => {
-			this.persons = persons;
+		}).then(personsResult => {
+			persons = personsResult;
 
-			churchtoolsClient.get('/groups/members').then(relations => {
-				this.relations = relations;
+			ct.churchtoolsClient.get('/groups/members').then(relationsResult => {
+				relations = relationsResult;
 
-				churchtoolsClient.get('/groups/hierarchies').then(hierarchies => {
-					this.hierarchies = hierarchies;
+				ct.churchtoolsClient.get('/groups/hierarchies').then(hierarchiesResult => {
+					hierarchies = hierarchiesResult;
 
-					createRelatedData(this.persons, this.groups, this.hierarchies, this.relations);
-				});
-			});
+					createRelatedData(persons, groups, hierarchies, relations);
+				}).catch(error => console.log(error));
+			}).catch(error => console.log(error));
 		});
 	});
 }

@@ -73,4 +73,4 @@ class GraphMLGraph {
     }
 }
 
-module.exports = GraphMLGraph;
+export default GraphMLGraph;
