@@ -6,7 +6,7 @@ class GraphMLNode {
     }
     
     getNodeIdentifier() {
-        return `${this.dataType}-${this.id}-${this.data.replace(/\s/g, '')}`;
+        return `${this.dataType}-${this.id}-${this.data.replace(/[\s&]/g, '')}`;
     }
 }
 

@@ -40,7 +40,7 @@ class GraphMLGraph {
         <node id="${nodeId}">
             <data key="d6">
                 <y:ShapeNode>
-                    <y:NodeLabel>${nodeData}</y:NodeLabel>
+                    <y:NodeLabel>${nodeData.replace('&', '')}</y:NodeLabel>
                 </y:ShapeNode>
             </data>
             <data key="type">${nodeType}</data>
