@@ -19,6 +19,18 @@ const BASEURL = process.env.BASEURL;
 const EMAIL = process.env.EMAIL;
 const PASSWORD = process.env.PASSWORD;
 
+if (!BASEURL) {
+	throw new Error("No env BASEURL set");
+}
+
+if (!EMAIL) {
+	throw new Error("No env EMAIL set");
+}
+
+if (!PASSWORD) {
+	throw new Error("No env PASSWORD set");
+}
+
 function initChurchToolsClient() {
 	churchtoolsClient.setCookieJar(axiosCookieJarSupport.default, new tough.CookieJar());
 	churchtoolsClient.setBaseUrl(BASEURL);
