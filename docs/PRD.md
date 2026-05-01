@@ -1,635 +1,673 @@
-# Product Requirements Document: ChurchTools Organigram Generator
+# Product Requirements Document: ChurchTools Organigram
+
+**Version:** 2.0
+**Date:** 2026-04-25
+**Status:** Draft
+
+---
 
 ## 1. Executive Summary
 
-ChurchTools Organigram Generator is a self-hosted web application that fetches organisational data from a ChurchTools instance, transforms it into a clean, interactive organigram, and allows users to export it as a compact PDF. The application targets church administrators and team leaders who need a visual, up-to-date overview of their ministry structure without manual diagram maintenance.
+ChurchTools Organigram is a self-hosted web application that fetches organizational structure data from the ChurchTools church management API and renders it as an interactive, printable organigram. Church administrators can see at a glance which groups exist, how they are nested, and who leads each group — all in a clean, dense diagram that can be downloaded as an SVG.
 
-The system is split into three independently testable modules: a ChurchTools data fetcher (transforms raw API data into a portable JSON file), a web renderer (displays the organigram interactively), and a PDF generator (produces a clean A4 export). These modules communicate through a shared, versioned data format, allowing any module to be replaced or tested in isolation.
+The application replaces a legacy CLI proof-of-concept (GraphML export for yEd) with a modern full-stack TypeScript web app. Data fetching is configuration-driven: administrators define which group types, status IDs, and tags are relevant, then trigger a fetch. The resulting `organigram.json` is persisted and displayed immediately. The diagram is interactive — panning, zooming, and person-based highlighting are all supported in the browser.
 
-**MVP Goal:** Deliver a working, Dockerised web application that fetches group and leader data from ChurchTools, renders an interactive organigram in the browser, and exports a compact A4 PDF — all driven by a `config.json` that is editable from within the UI.
+**MVP goal:** A single Docker container that any Authelia-authenticated church employee can open in a browser to view, refresh, and download their church's organigram, with no additional authentication or infrastructure beyond Traefik + Authelia.
 
 ---
 
 ## 2. Mission
 
-**Mission Statement:** Provide church teams with an always-current, visually clean organigram that requires no manual diagram maintenance — just fetch, review, and share.
+**Mission statement:** Make a church's organizational structure instantly visible and shareable, with zero friction for end users and minimal setup for administrators.
 
-**Core Principles:**
+### Core Principles
 
-1. **Separation of concerns** — Data fetching, web rendering, and PDF generation are independent modules, each testable without the others.
-2. **Portability** — The organigram is stored as a plain JSON file that can be uploaded, downloaded, and versioned independently of the application.
-3. **Simplicity** — The UI should be usable by non-technical staff; no coding required to update or export the organigram.
-4. **Configurability** — All filtering and display rules live in a `config.json` that is editable from the UI, not hardcoded.
-5. **Clean output** — Both the web view and the PDF should be visually polished and compact; the PDF must be printable and shareable without further editing.
+1. **Simplicity over configurability** — one config file, one data file, one container. No databases, no user accounts, no queues.
+2. **Data fidelity** — all fetched nodes (including level 5+) are persisted in `organigram.json`; truncation is a display concern only.
+3. **Display/fetch separation** — what data is fetched and how it is displayed are independently configurable; changing display settings never triggers a re-fetch.
+4. **Compact, dense diagrams** — the SVG layout prioritizes information density over visual whitespace; the goal is a diagram that fits on one printed page.
+5. **No app-level auth** — security is delegated entirely to Traefik + Authelia; the app trusts all incoming requests.
 
 ---
 
 ## 3. Target Users
 
-### Primary Persona: Church Administrator / Geschäftsführer
+### Primary Persona: Church Administrator / Office Staff
 
-- **Who:** Staff member responsible for maintaining organisational documentation; likely one or two people per church.
-- **Technical comfort:** Medium — comfortable with web apps, not a developer.
-- **Key needs:**
-  - Trigger a fresh fetch from ChurchTools with one click
-  - Download a print-ready PDF to share with leadership
-  - Adjust which groups appear (filter config) without editing code
+- Manages group structure in ChurchTools
+- Needs a quick visual reference for "who leads what"
+- Comfortable with basic web apps; not a developer
+- May want to share the organigram as a file (SVG) with leadership
 
-### Secondary Persona: Ministry Leader / Bereichsleiter
+### Secondary Persona: Church Leadership
 
-- **Who:** Leader of a specific ministry area who wants to view the structure of their teams.
-- **Technical comfort:** Low to medium — just a web browser.
-- **Key needs:**
-  - View the current organigram in the browser
-  - Expand/collapse sections to focus on their area
-  - (Future) Click a person to see all groups they lead
+- Reads the organigram but does not configure or fetch
+- May want to highlight a specific person across all their roles
+- Expects the diagram to load quickly and be readable on screen
 
-### Technical Persona: Self-Hoster / Developer
+### Technical Persona: System Administrator
 
-- **Who:** The person deploying and maintaining the application (likely the same person as the administrator in a small church).
-- **Technical comfort:** High — comfortable with Docker, `.env` files, JSON.
-- **Key needs:**
-  - Simple Docker deployment
-  - Clear config file format
-  - Credentials kept out of the UI for security
+- Sets up the Docker container and Authelia integration
+- Provides `.env` credentials
+- May need to edit `config.json` directly or via the web UI
+- Comfortable with Docker Compose and basic infrastructure
 
 ---
 
 ## 4. MVP Scope
 
-### In Scope
+### Core Functionality
 
-**Core Functionality:**
-- ✅ Fetch organisational data from ChurchTools API (groups, persons, memberships, hierarchies)
-- ✅ Filter groups by root group type IDs and relevant group type IDs
-- ✅ Filter groups by include/exclude tags
-- ✅ Attach leaders and (optionally) co-leaders to group nodes
-- ✅ Save filtered organigram as `organigram.json`
-- ✅ Display interactive organigram in the browser with expand/collapse
-- ✅ Upload a saved `organigram.json` file
-- ✅ Download the currently loaded organigram as a JSON file
-- ✅ Download the organigram as an SVG file (full tree, client-side)
-- ✅ Edit `config.json` from within the UI
-- ✅ Dark / light / system theme for the web UI
-- ✅ Confirm dialog before overwriting existing `organigram.json` on re-fetch
-- ✅ Display persons as leader badges on their group node
+- ✅ Fetch organigram data from ChurchTools API (triggered manually)
+- ✅ Persist fetched data as `organigram.json`
+- ✅ Render organigram as custom interactive SVG (no d3-org-chart)
+- ✅ Pan and zoom the SVG diagram
+- ✅ Download diagram as SVG file
+- ✅ Upload an existing `organigram.json` file
+- ✅ Display fetch/filter settings in a modal dialog
+- ✅ Display rendering/display settings in a side drawer
+- ✅ Light / dark / system theme
+- ✅ Person click-to-highlight across all nodes
+- ✅ Show/hide co-leaders (display toggle, does not affect stored data)
+- ✅ Show/hide inactive groups (display toggle)
+- ✅ Overwrite confirmation when re-fetching existing data
 
-**Technical:**
-- ✅ TypeScript throughout (strict mode)
-- ✅ Hono backend + Vite + Vue 3 + Vuetify frontend
-- ✅ Single Docker container deployment
-- ✅ Shared types between server and client
-- ✅ Module A (fetcher) and Module B (renderer) independently testable
+### Technical
 
-**Integration:**
-- ✅ ChurchTools REST API (cookie-based session auth)
+- ✅ TypeScript throughout (server + client + shared types)
+- ✅ Hono backend serving both API and static client build
+- ✅ Vue 3 + Vuetify 3 frontend
+- ✅ Zod schema validation on all API boundaries
+- ✅ Unit tests for fetcher transform logic and SVG layout algorithm
+- ✅ Single `config.json` for all settings
+- ✅ `data/` directory mounted as Docker volume
 
-**Deployment:**
-- ✅ Dockerfile + `docker-compose.yml`
-- ✅ Credentials via `.env` only
-- ✅ `data/` volume for persistent `organigram.json` and `config.json`
+### Integration
 
-### Out of Scope
+- ✅ ChurchTools REST API (groups, persons, members, hierarchies)
+- ✅ Credentials via `.env` (CT_BASEURL, CT_EMAIL, CT_PASSWORD)
+- ❌ OAuth / ChurchTools SSO
+- ❌ Webhooks or scheduled auto-fetch
+- ❌ Multiple ChurchTools instances
 
-**Deferred to future phases:**
-- ❌ Multiple filter profiles / saved views
-- ❌ Click a person to highlight all groups they lead
-- ❌ Fetch and propose available group types dynamically from ChurchTools
-- ❌ User accounts / per-user organigrams
-- ❌ Scheduled automatic re-fetch
-- ❌ ChurchTools credentials editable in the UI
-- ❌ GraphML / yEd export
-- ❌ Embed in other pages (iframe)
-- ❌ Role/permission management beyond Traefik + Authelia
-- ❌ PDF export
-- ❌ Multi-language UI
+### Deployment
+
+- ✅ Single Docker container (multi-stage build)
+- ✅ Docker Compose setup
+- ✅ Traefik + Authelia compatible (no app-level auth)
+- ❌ Kubernetes / Helm chart
+- ❌ Multi-user permissions or roles within the app
 
 ---
 
 ## 5. User Stories
 
-**US-1:** As an administrator, I want to click "Fetch from ChurchTools" and have the organigram updated automatically, so that I don't have to manually maintain diagrams.
-> *Example: Administrator clicks "Fetch", confirms the overwrite dialog, waits ~5 seconds, and the updated organigram appears in the browser.*
+**US-1: View the current organigram**
+As a church staff member, I want to open the web app and immediately see the current organigram, so that I can quickly understand the group structure without opening ChurchTools.
+> *Example: The app loads and shows the last fetched diagram with group names, leaders, and color-coded group types.*
 
-**US-2:** As an administrator, I want to download the current organigram as a JSON file, so that I can archive it or share it with another instance of the app.
-> *Example: Administrator clicks "Download JSON", and `organigram.json` is saved to their downloads folder.*
+**US-2: Refresh from ChurchTools**
+As an administrator, I want to trigger a fresh fetch from ChurchTools with one click, so that the diagram reflects the latest group and membership data.
+> *Example: I click "Fetch from ChurchTools" in the toolbar. If a diagram already exists I confirm the overwrite. The new diagram is displayed within seconds.*
 
-**US-3:** As an administrator, I want to upload a previously saved organigram JSON file, so that I can restore an older snapshot or load data fetched by someone else.
-> *Example: Administrator clicks "Upload JSON", selects a file, and the organigram in the browser updates immediately.*
+**US-3: Find where a person leads**
+As a church leader, I want to click on a person's name in the diagram and see all nodes where they appear highlighted, so that I can quickly understand someone's full involvement across all groups.
+> *Example: I click "Anna Müller" in one node; all other nodes where she appears as leader or co-leader get a colored accent border. I press ESC to clear.*
 
-**US-4:** As an administrator, I want to edit the filter configuration (group type IDs, role IDs, tags, co-leader toggle) from within the UI, so that I don't need server access to change what appears in the organigram.
-> *Example: Administrator opens the Config editor, adds a group type ID to `relevantGroupTypeIds`, saves, then re-fetches to see the updated result.*
+**US-4: Download the diagram**
+As an administrator, I want to download the organigram as an SVG file, so that I can share it with leadership via email or include it in a presentation.
+> *Example: I click "Download SVG" in the toolbar. A file named `organigram.svg` is saved to my downloads folder.*
 
-**US-5:** As a ministry leader, I want to expand and collapse branches of the organigram, so that I can focus on my area without being overwhelmed by the full structure.
-> *Example: Leader collapses all top-level nodes except "Worship", then expands "Worship" to see its sub-teams and their leaders.*
+**US-5: Configure which groups to include**
+As an administrator, I want to configure the root group ID, relevant group types, and status filters in the app, so that I don't have to edit config files manually.
+> *Example: I open the "Fetch Settings" dialog, change the root group ID from 11 to 15, add a new group type with leader role IDs, and click "Save and Fetch".*
 
-**US-6:** As an administrator, I want to download the organigram as an SVG file, so that I can embed it in documents or open it in a vector graphics editor.
-> *Example: Administrator clicks "Download SVG", and the full organigram tree (all nodes expanded) is downloaded as an `.svg` file instantly.*
+**US-6: Adjust display settings**
+As a user, I want to toggle co-leaders on/off and switch between light and dark mode, so that I can customize the view for my current context (e.g. projecting in a meeting vs. reading on my phone).
+> *Example: I open the settings drawer and toggle "Show Co-Leaders" off — co-leader badges disappear from all nodes immediately, without re-fetching.*
 
-**US-7:** As a user, I want the app to respect my system dark/light mode preference, so that I can use it comfortably in any environment.
-> *Example: User's OS is in dark mode; the organigram app loads in dark mode automatically. They can override this in the config.*
+**US-7: Upload a saved organigram**
+As an administrator, I want to upload a previously downloaded `organigram.json`, so that I can restore a known-good state or share data between environments.
+> *Example: I click "Upload JSON" and select a file. The diagram is immediately displayed and saved as the active organigram.*
 
-**US-8 (Technical):** As a developer, I want to run the ChurchTools fetcher module independently with a mock config, so that I can verify the data transformation logic without needing a live ChurchTools instance.
-> *Example: Developer runs `npm run test:fetcher` with fixture data and confirms the output matches the expected `OrgChartFile` structure.*
+**US-8 (technical): Validate configuration at API boundary**
+As a developer, I want all config and organigram data to be validated against a Zod schema before being written to disk, so that malformed data never corrupts the persisted state.
+> *Example: A PUT /api/config request with an invalid color string returns HTTP 400 with a Zod validation error message.*
 
 ---
 
 ## 6. Core Architecture & Patterns
 
-### High-Level Architecture
+### Architecture
 
-```
-┌──────────────────────────────────────────────────────────┐
-│                    Docker Container                       │
-│                                                          │
-│  ┌───────────────────────────────────────────────────┐   │
-│  │              Hono Server (Node.js)                │   │
-│  │                                                   │   │
-│  │  ┌──────────────┐  ┌───────────────────────────┐  │   │
-│  │  │  API Routes  │  │  Static File Server       │  │   │
-│  │  │  /api/*      │  │  (Vite production build)  │  │   │
-│  │  └──────┬───────┘  └───────────────────────────┘  │   │
-│  │         │                                          │   │
-│  │  ┌──────┴─────────────────────────────────────┐   │   │
-│  │  │              Services                       │   │   │
-│  │  │  ┌──────────────────────┐  ┌────────────┐  │   │   │
-│  │  │  │      Module A        │  │   Config   │  │   │   │
-│  │  │  │  ChurchTools Fetcher │  │   Service  │  │   │   │
-│  │  │  └──────────────────────┘  └────────────┘  │   │   │
-│  │  └────────────────────────────────────────────┘   │   │
-│  └───────────────────────────────────────────────────┘   │
-│                                                          │
-│  ┌───────────────────────────────────────────────────┐   │
-│  │                data/ volume                       │   │
-│  │   organigram.json          config.json            │   │
-│  └───────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────┘
-         ▲                              ▲
-         │ HTTPS (Traefik + Authelia)   │ ChurchTools API
-         │                              │
-      Browser                    ChurchTools instance
-  (Vue 3 + Vuetify)
-         │
-    ┌────┴─────────────────────────────────────────────┐
-    │              Module B (Vue 3 + Vuetify SPA)      │
-    │   d3-org-chart renderer + Config editor UI       │
-    └──────────────────────────────────────────────────┘
-```
+Single-process Node.js server (Hono) serving:
+- REST API at `/api/*`
+- Static Vite-built Vue 3 client at `/`
+
+No database — all state in two JSON files on disk (`data/config.json`, `data/organigram.json`) mounted via Docker volume.
 
 ### Directory Structure
 
 ```
-churchtools-organigram/
-├── src/
-│   ├── server/
-│   │   ├── index.ts                  # Hono app entry point
-│   │   ├── routes/
-│   │   │   ├── organigram.ts         # GET, POST (upload), GET /download
-│   │   │   ├── fetch.ts              # POST /fetch (trigger ChurchTools fetch)
-│   │   │   └── config.ts             # GET, PUT /config
-│   │   └── services/
-│   │       ├── churchtools.ts        # Module A: fetcher + transformer
-│   │       └── config.ts             # Read/write config.json
-│   ├── client/
-│   │   ├── main.ts                   # Vite + Vue app entry
-│   │   ├── App.vue                   # Root component (layout, theme provider)
-│   │   ├── components/
-│   │   │   ├── OrgChart.vue          # Module B: d3-org-chart wrapper
-│   │   │   ├── Toolbar.vue           # Fetch / Upload / Download JSON / Download SVG buttons
-│   │   │   ├── ConfigEditor.vue      # Config editor form (Vuetify inputs)
-│   │   │   └── ConfirmDialog.vue     # Overwrite confirmation dialog
-│   │   ├── composables/
-│   │   │   ├── useOrganigram.ts      # Fetch, upload, download organigram
-│   │   │   └── useConfig.ts          # Read/write config
-│   │   └── plugins/
-│   │       └── vuetify.ts            # Vuetify setup (theme, icons)
-│   └── shared/
-│       └── types.ts                  # Shared TypeScript types (OrgChartFile, OrgNode, etc.)
-├── data/
-│   ├── organigram.json               # Persisted organigram (Docker volume)
-│   └── config.json                   # App configuration (Docker volume)
-├── .env                              # ChurchTools credentials (never committed)
-├── .env.example
-├── Dockerfile
-├── docker-compose.yml
-├── vite.config.ts
-├── tsconfig.json
-└── package.json
+src/
+  shared/
+    types.ts          # TypeScript interfaces (OrgChartFile, AppConfig, etc.)
+    schemas.ts        # Zod validation schemas
+  server/
+    index.ts          # Hono app entry point
+    routes/
+      fetch.ts        # POST /api/fetch
+      organigram.ts   # GET/POST /api/organigram, GET /api/organigram/download
+      config.ts       # GET/PUT /api/config
+    services/
+      churchtools.ts        # ChurchTools API client + transform
+      churchtools.test.ts   # Unit tests for transform logic
+      config.ts             # File I/O for config.json and organigram.json
+  client/
+    main.ts
+    App.vue
+    components/
+      Toolbar.vue
+      OrgChart.vue            # Custom SVG renderer
+      ConfigEditor.vue        # Display settings drawer
+      FetchConfigDialog.vue   # Fetch/filter settings modal
+      ConfirmDialog.vue
+    composables/
+      useOrganigram.ts
+      useConfig.ts
+    lib/
+      orgChartLayout.ts       # Pure layout algorithm (testable, no DOM)
+      orgChartLayout.test.ts  # Unit tests for layout math
+    plugins/
+      vuetify.ts
+data/
+  config.json         # Runtime config (volume-mounted)
+  organigram.json     # Persisted organigram (volume-mounted)
 ```
 
 ### Key Design Patterns
 
-1. **Module isolation** — The two modules (fetcher, renderer) share only `src/shared/types.ts`. Each can be unit-tested with fixture data.
-2. **Config-driven filtering** — All filtering logic reads from `config.json` at runtime; no filter logic is hardcoded.
-3. **File-based persistence** — `organigram.json` and `config.json` live in a Docker volume. No database required.
-4. **Client-side SVG export** — d3-org-chart's `exportSvg()` handles SVG download entirely in the browser; no server round-trip needed.
-5. **Single container** — Hono serves both the API and the Vite-built SPA as static files from one process.
+- **Shared types:** `src/shared/types.ts` is imported by both server and client. Zod schemas in `src/shared/schemas.ts` are the single source of truth for validation.
+- **Display/fetch separation:** `showCoLeaders` and `showInactiveGroups` are display-only toggles stored in config. The fetcher always stores full data (all co-leaders, all inactive groups). The renderer filters at render time.
+- **Pure layout algorithm:** SVG node positioning is computed in `orgChartLayout.ts` with no DOM or Vue dependencies, enabling unit testing with Vitest.
+- **Config panel duality:** Both the settings drawer (ConfigEditor) and the fetch dialog (FetchConfigDialog) hold a full deep copy of `AppConfig` as local state. Each renders only its relevant subset of fields. Saving emits the full config, so no fields are ever silently dropped.
 
 ---
 
 ## 7. Features
 
-### 7.1 ChurchTools Data Fetcher (Module A)
+### 7.1 Data Fetcher
 
-Reads `.env` for credentials and `config.json` for filter rules. Calls four ChurchTools API endpoints, applies filters, and returns an `OrgChartFile`.
+**Purpose:** Fetch organizational data from ChurchTools and transform it into `OrgChartFile`.
 
-**Filter logic:**
+**ChurchTools API calls (parallel after login):**
+- `GET /api/groups` — paginated, all pages fetched
+- `GET /api/persons` — paginated (limit 500), all pages fetched
+- `GET /api/groups/members` — single call (not paginated)
+- `GET /api/groups/hierarchies` — single call (not paginated)
+
+**Filtering logic (in order):**
+1. Root group (by `rootGroupId`) — always included
+2. Groups with an `excludeTag` — excluded regardless of type
+3. If `relevantGroupStatusIds` is non-empty — exclude groups whose status is not in the list
+4. Groups whose `groupTypeId` is in `config.groupTypes` — included
+5. Groups with an `includeTag` — included regardless of type
+6. All others — excluded
+
+**Inactive marking:** A node gets `inactive: true` if its `groupStatusId` is in `inactiveGroupStatusIds` (array).
+
+**Parent assignment:** For each included non-root group, walk up the ChurchTools hierarchy to find the nearest included ancestor. Groups with no path to the root are logged and skipped (orphaned).
+
+**Co-leaders:** Always stored in `organigram.json`, regardless of `showCoLeaders` config.
+
+### 7.2 Custom SVG Renderer
+
+**Layout (top-anchored, compact columns):**
+
 ```
-Include a group if:
-  (groupTypeId is in relevantGroupTypeIds OR group has an includeTag)
-  AND group does NOT have an excludeTag
-
-Root nodes:
-  Groups whose groupTypeId is in rootGroupTypeIds
-  (these become the top-level nodes; their descendants are included
-   if they pass the filter above)
+         [Root]
+    ┌──────────────────┐
+  [L2-A]            [L2-B]
+  [L3-A1]           [L3-B1]
+  [L3-A2]           [L3-B2]
+    [L4-A2a]
+    [L4-A2b]
+    [L4-A2c ...]      ← has level-5 children → tooltip on hover
 ```
 
-**Steps:**
-1. POST `/login` — cookie-based session
-2. GET `/groups` — all groups
-3. GET `/persons?limit=500` — all persons
-4. GET `/groups/members` — person-to-group role assignments
-5. GET `/groups/hierarchies` — parent/child relationships between groups
-6. Filter groups per logic above
-7. Build flat `OrgNode[]` with `parentId` references
-8. Attach leaders (roleId in `leaderRoleIds`) and co-leaders (roleId in `coLeaderRoleIds`, only if `showCoLeaders: true`) as embedded arrays on each node
-9. Return `OrgChartFile`
+- **Level 1** (root): centered horizontally at the top
+- **Level 2**: one node per column, spread horizontally below root
+- **Level 3**: stacked vertically below their level-2 column header
+- **Level 4**: subboxes stacked vertically inside the level-3 box
+- **Level 5+**: not rendered; level-4 boxes that have children show `...` right-aligned with a Vuetify tooltip listing level-5 group names
 
-### 7.2 Interactive Organigram Renderer (Module B)
+**Node rendering (pure SVG, no `<foreignObject>`):**
+- `<rect>` for card background + border
+- `<rect>` for colored header strip (group-type color)
+- `<text>` for group name
+- Per person: `<rect>` (pill) + `<text>` — leaders and co-leaders styled differently
 
-Client-side Vue 3 + Vuetify SPA using `d3-org-chart`. Receives an `OrgChartFile` and renders the tree. Vuetify provides the component library (app shell, toolbar, dialogs, form inputs, icons). `d3-org-chart` is mounted inside an `OrgChart.vue` component and manages its own SVG DOM.
+**Inactive nodes:** When `showInactiveGroups` is true, inactive nodes render with gray header color and reduced opacity. When false, inactive nodes are excluded from rendering entirely.
 
-**Features:**
-- Expand/collapse subtrees (click on a node)
-- Leaders displayed as name badges on the group node
-- Co-leaders displayed as secondary badges (when `showCoLeaders` is true)
-- Dark / light / system theme via Vuetify's theming — persisted in `config.json`
-- Responsive layout within the browser viewport
-- Toolbar: Fetch from ChurchTools, Upload JSON, Download JSON, Download SVG
+**Pan/zoom:** `@panzoom/panzoom` applied to the SVG element.
 
-### 7.3 Config Editor
+**SVG export:** `XMLSerializer.serializeToString(svgEl)` → Blob → download.
 
-A `ConfigEditor.vue` component using Vuetify form inputs that reads and writes `config.json` via the API. Array fields (IDs, tags) are rendered as dynamic chip inputs — type a value and press Enter to add it to the list; click × on a chip to remove it.
+### 7.3 Person Highlight
 
-**Editable fields:**
-- `rootGroupTypeIds` — numeric IDs of root group types
-- `relevantGroupTypeIds` — numeric IDs of included group types
-- `leaderRoleIds` — role IDs that count as leaders
-- `coLeaderRoleIds` — role IDs that count as co-leaders
-- `showCoLeaders` — toggle switch
-- `includeTags` — tags that force-include a group
-- `excludeTags` — tags that force-exclude a group
-- `theme` — select: `"light"` | `"dark"` | `"system"`
+- Click a person badge → compute the set of all node IDs where that person appears in `leaders` or (if `showCoLeaders` is on) `coLeaders`
+- Highlighted nodes get a distinct accent stroke (no dimming of others)
+- Clear: click same person again, click a different person (switches highlight), press ESC, or click the floating "Clear highlight" button
+- State: a single `highlightedPersonId: ref<number | null>` in the OrgChart component
 
-Changes are saved to `config.json` on the server when the user clicks Save. A re-fetch is required for filter changes to take effect in the organigram.
+### 7.4 Config: Fetch/Filter Dialog
 
-### 7.4 SVG Export
+Modal dialog (`v-dialog`) opened from a toolbar button.
 
-Client-side export using d3-org-chart's built-in `exportSvg()` method. No server round-trip required.
+**Fields:**
+- Root Group ID (number input)
+- Group Types: add/remove/edit — each type has: ID, name, color, leader role IDs (chips), co-leader role IDs (chips)
+- Relevant Group Status IDs (chip array)
+- Inactive Group Status IDs (chip array, replaces old singular field)
+- Include Tags / Exclude Tags (chip arrays)
 
-**Behaviour:**
-- `chart.expandAll()` is called before export so the SVG contains the full tree regardless of current collapse state
-- Collapse state is restored after export
-- File downloads as `organigram.svg` directly from the browser
+**Actions:** Cancel | Save | Save and Fetch
+
+### 7.5 Config: Display Settings Drawer
+
+Side drawer (`v-navigation-drawer`) opened from a toolbar icon.
+
+**Fields:**
+- Show Co-Leaders (toggle)
+- Show Inactive Groups (toggle)
+- Theme: System / Light / Dark (select)
+- Per group type (name + color editor, one row per configured type)
+
+**Actions:** Save (closes drawer on success)
 
 ---
 
 ## 8. Technology Stack
 
 ### Backend
+
 | Technology | Version | Purpose |
 |---|---|---|
-| **Node.js** | 20.x LTS | Runtime |
-| **Hono** | 4.x | HTTP server framework (TypeScript-first, lightweight) |
-| **@hono/node-server** | latest | Node.js adapter for Hono |
+| Node.js | 20+ | Runtime |
+| TypeScript | 5.4+ | Language |
+| Hono | 4.6 | HTTP server + routing |
+| @hono/node-server | 1.12 | Node.js adapter for Hono |
+| Zod | 3.23 | Schema validation |
+| dotenv | latest | `.env` loading |
+| tsx | latest | Dev-mode TS execution |
 
 ### Frontend
+
 | Technology | Version | Purpose |
 |---|---|---|
-| **Vite** | 5.x | SPA bundler + dev server |
-| **Vue 3** | 3.x | Reactive component framework (Composition API) |
-| **Vuetify** | 3.x | Material Design component library (app shell, forms, dialogs, theming) |
-| **TypeScript** | 5.x | Type safety (strict mode) |
-| **d3-org-chart** | 3.x | Interactive org chart rendering (MIT, SVG-based) |
+| Vue 3 | 3.4+ | UI framework |
+| Vuetify | 3.6+ | Component library + theming |
+| @mdi/font | latest | Material Design icons |
+| @panzoom/panzoom | 4.x | SVG pan/zoom |
+| Vite | 5.3+ | Build tool + dev server |
 
-### Shared
+### Testing
+
 | Technology | Purpose |
 |---|---|
-| **TypeScript** | Shared types between server and client (`src/shared/types.ts`) |
-| **zod** | Runtime validation of config.json, uploaded files, API inputs |
-
-### Dev Tooling
-| Tool | Purpose |
-|---|---|
-| **Vitest** | Unit testing for both modules |
-| **tsx** | TypeScript execution for dev server |
+| Vitest | Unit test runner |
 
 ### Deployment
+
 | Technology | Purpose |
 |---|---|
-| **Docker** | Single-container deployment |
-| **docker-compose** | Local and production orchestration |
-| **Traefik + Authelia** | Reverse proxy + authentication (external, not in this repo) |
+| Docker | Container runtime |
+| Docker Compose | Local/production orchestration |
+| Traefik | Reverse proxy (external) |
+| Authelia | Authentication (external) |
 
 ---
 
 ## 9. Security & Configuration
 
+### Authentication
+
+- **In scope:** Traefik + Authelia handle all authentication. The app trusts all requests that reach it.
+- **Out of scope:** App-level login, session management, per-user permissions, CSRF protection.
+
 ### Credentials (`.env`)
 
-ChurchTools credentials are provided exclusively via environment variables. They are never exposed in the UI, never written to `config.json`, and never included in the Docker image.
-
-```env
+```dotenv
 CT_BASEURL=https://example.church.tools
 CT_EMAIL=admin@example.com
 CT_PASSWORD=secret
 ```
 
-### Config file (`data/config.json`)
+These are read at fetch time from `process.env`. Never stored in `config.json` or exposed via any API endpoint.
+
+### Configuration (`data/config.json`)
 
 ```json
 {
-  "rootGroupTypeIds": [4],
-  "relevantGroupTypeIds": [4, 7],
-  "leaderRoleIds": [1, 2],
-  "coLeaderRoleIds": [3],
+  "rootGroupId": 11,
+  "groupTypes": [
+    {
+      "id": 1,
+      "name": "Kleingruppe",
+      "color": "#f5c211",
+      "leaderRoleIds": [9],
+      "coLeaderRoleIds": [10]
+    }
+  ],
   "showCoLeaders": true,
-  "includeTags": ["organigram"],
-  "excludeTags": ["organigram-exclude"],
+  "showInactiveGroups": true,
+  "includeTags": [],
+  "excludeTags": [],
+  "relevantGroupStatusIds": [],
+  "inactiveGroupStatusIds": [4],
   "theme": "system"
 }
 ```
 
-### Security scope
+All config writes are validated via Zod before being written to disk.
 
-**In scope:**
-- ✅ Credentials via `.env` only — never in config or UI
-- ✅ Input validation (zod) on all API endpoints
-- ✅ Uploaded JSON validated against `OrgChartFile` schema before acceptance
-- ✅ Config values validated before writing to disk
+### Data Security
 
-**Out of scope (handled externally):**
-- ❌ Authentication — delegated to Traefik + Authelia
-- ❌ HTTPS termination — handled by Traefik
-- ❌ Per-user access control
-
-### Deployment
-
-```yaml
-# docker-compose.yml (simplified)
-services:
-  organigram:
-    build: adr
-    volumes:
-      - ./data:/app/data
-    env_file: .env
-    ports:
-      - "3000:3000"
-```
-
-The `data/` directory is mounted as a volume so `organigram.json` and `config.json` persist across container restarts.
+- `organigram.json` contains person names (first + last). The file is only accessible to users authenticated through Authelia.
+- No personal data is stored beyond what is already visible in ChurchTools.
+- No logging of person names or credentials in application logs.
 
 ---
 
 ## 10. API Specification
 
-All routes are prefixed with `/api`.
-
-### Organigram
-
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/api/organigram` | Return current `organigram.json` as JSON |
-| `POST` | `/api/organigram` | Accept uploaded `OrgChartFile` JSON body, validate, write to disk |
-| `GET` | `/api/organigram/download` | Return `organigram.json` as a file download (`Content-Disposition: attachment`) |
-
-### ChurchTools Fetch
-
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/api/fetch` | Fetch from ChurchTools using `.env` credentials + current `config.json`. Returns the new `OrgChartFile` without saving it. Client confirms, then calls `POST /api/organigram` to persist. |
-
-**Response:**
-```json
-{ "data": { /* OrgChartFile */ } }
-```
-
-### Config
-
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/api/config` | Return current `config.json` |
-| `PUT` | `/api/config` | Validate and write new config |
+### Base URL
+All routes prefixed with `/api`.
 
 ---
 
-## 11. Shared Data Types
+### `POST /api/fetch`
+Fetch organigram data from ChurchTools using the current saved config.
+
+**Request:** No body.
+
+**Response 200:**
+```json
+{
+  "data": {
+    "schemaVersion": "1",
+    "generatedAt": "2026-04-25T10:00:00.000Z",
+    "nodes": [ ... ]
+  }
+}
+```
+
+**Response 401:** ChurchTools login failed
+**Response 502:** ChurchTools API error
+
+---
+
+### `GET /api/organigram`
+Load the saved organigram.
+
+**Response 200:** `OrgChartFile` JSON
+**Response 404:** No organigram saved yet
+
+---
+
+### `POST /api/organigram`
+Save an organigram (validated against Zod schema).
+
+**Request body:** `OrgChartFile` JSON
+**Response 200:** `{ "ok": true }`
+**Response 400:** Validation error
+
+---
+
+### `GET /api/organigram/download`
+Download `organigram.json` as a file attachment.
+
+**Response 200:** `Content-Disposition: attachment; filename="organigram.json"`
+
+---
+
+### `GET /api/config`
+Load the saved configuration.
+
+**Response 200:** `AppConfig` JSON
+**Response 200 (fallback):** Default config if no file exists
+
+---
+
+### `PUT /api/config`
+Save configuration (validated against Zod schema).
+
+**Request body:** `AppConfig` JSON
+**Response 200:** Saved `AppConfig`
+**Response 400:** Validation error
+
+---
+
+## 11. Success Criteria
+
+### MVP Success Definition
+
+The MVP is successful when a church administrator can:
+1. Deploy the Docker container with a `.env` file
+2. Open the web app, trigger a fetch, and see their organigram rendered correctly
+3. Download the organigram as an SVG suitable for sharing
+4. Adjust display settings without re-fetching
+
+### Functional Requirements
+
+- ✅ Fetch from ChurchTools completes without error for a real instance
+- ✅ All configured group types appear in the diagram with correct colors
+- ✅ Leaders and co-leaders appear on their respective group nodes
+- ✅ Inactive groups display with gray styling when `showInactiveGroups: true`
+- ✅ Inactive groups are hidden when `showInactiveGroups: false`
+- ✅ Co-leader badges appear/disappear instantly when toggling `showCoLeaders`
+- ✅ Person highlight correctly identifies all nodes across the full diagram
+- ✅ Pan and zoom work smoothly on desktop
+- ✅ SVG download produces a readable, standalone file
+- ✅ Config changes persist across page reloads
+- ✅ All API endpoints return Zod validation errors for malformed input
+- ✅ All server-side tests pass (`npm test`)
+- ✅ TypeScript build succeeds with no errors (`npm run typecheck`)
+
+### Quality Indicators
+
+- Layout algorithm unit tests cover all level assignments and geometry invariants
+- No use of `d3-org-chart` or other charting libraries for layout
+- `organigram.json` stores all nodes including level 5+ (display truncation only)
+- `showCoLeaders` does not affect what is stored in `organigram.json`
+
+---
+
+## 12. Implementation Phases
+
+### Phase A — Foundation (Repo Cleanup + Data Model)
+
+**Goal:** Clean slate with correct shared types. Everything downstream depends on this.
+
+**Deliverables:**
+- ✅ Delete `app/` directory entirely
+- ✅ Remove `run.sh`, `run.cmd`
+- ✅ Rewrite `README.md` for web app
+- ✅ Update `Dockerfile` (remove brittle `COPY data/config.json`)
+- ✅ `types.ts`: remove `source`, rename to `inactiveGroupStatusIds: number[]`, add `showInactiveGroups: boolean`
+- ✅ `schemas.ts`: mirror all type changes in Zod
+
+**Validation:** `npm run typecheck` surfaces all downstream type errors as a checklist.
+
+---
+
+### Phase B — Server (Fetcher + Tests)
+
+**Goal:** Server correctly stores all co-leaders and handles plural inactive status IDs.
+
+**Deliverables:**
+- ✅ `churchtools.ts`: remove `showCoLeaders` guard at transform time
+- ✅ `churchtools.ts`: `inactiveGroupStatusIds` array membership check
+- ✅ `churchtools.ts`: remove `source` field from output
+- ✅ `config.ts`: update `DEFAULT_CONFIG`
+- ✅ `churchtools.test.ts`: adapt all affected tests, add new cases
+
+**Validation:** `npm test` — all tests pass.
+
+---
+
+### Phase C — Custom SVG Renderer (Largest Change)
+
+**Goal:** Replace d3-org-chart with a custom, testable SVG layout and renderer.
+
+**Deliverables:**
+- ✅ `src/client/lib/orgChartLayout.ts` — pure layout algorithm
+- ✅ `src/client/lib/orgChartLayout.test.ts` — layout unit tests
+- ✅ `src/client/components/OrgChart.vue` — complete rewrite:
+  - Pure SVG rendering (no `<foreignObject>`)
+  - `@panzoom/panzoom` for pan/zoom
+  - Person highlight with floating clear button + ESC key
+  - `showInactiveGroups` filtering
+  - `exportSvg` via XMLSerializer
+- ✅ `package.json`: remove `d3-org-chart`, add `@panzoom/panzoom`
+
+**Validation:** `npm test` passes for layout tests. Visual verification in `npm run dev`.
+
+---
+
+### Phase D — Config UI Split + Wiring
+
+**Goal:** Two separate config panels; full app wired together.
+
+**Deliverables:**
+- ✅ `ConfigEditor.vue`: stripped to display settings only (showCoLeaders, showInactiveGroups, theme, per-type name+color)
+- ✅ `FetchConfigDialog.vue`: new modal with all fetch/filter fields, Save and Save-and-Fetch actions
+- ✅ `Toolbar.vue`: add "open fetch config" button
+- ✅ `App.vue`: wire FetchConfigDialog, pass `showInactiveGroups` to OrgChart, add `onSaveFetchConfig` and `onSaveAndFetch` handlers
+
+**Validation:** Full end-to-end flow in `npm run dev`. `npm run build` succeeds.
+
+---
+
+## 13. Future Considerations
+
+- **Scheduled auto-fetch:** Cron-triggered fetch at a configurable interval, so the diagram is always current without manual action.
+- **Multiple profiles:** Support multiple named filter configurations (e.g. one for small groups, one for service teams), switchable in the UI.
+- **Deep-link to highlighted person:** URL hash encodes the highlighted person ID, enabling shareable links.
+- **Zoom-to-fit button:** One-click to reset pan/zoom to fit the full diagram in the viewport.
+- **Search/filter by group name:** A search bar that highlights or filters nodes by name, useful for large diagrams.
+- **Export as PDF:** Print-optimized layout with the organigram scaled to fit A4/Letter.
+- **ChurchTools OAuth:** Replace credential-based login with OAuth so individual user permissions from ChurchTools are respected.
+- **Responsive mobile layout:** Touch-friendly pan/zoom and collapsible columns for phone-sized viewports.
+- **Diff view:** Highlight what changed since the last fetch (new groups, removed groups, leadership changes).
+
+---
+
+## 14. Risks & Mitigations
+
+**R1: ChurchTools API pagination changes**
+*Risk:* ChurchTools silently changes pagination behavior, causing incomplete data fetches.
+*Mitigation:* The `shouldContinuePaging` function is unit-tested against pagination metadata. Add a warning log when the fetched count differs from the expected total.
+
+**R2: SVG export fidelity**
+*Risk:* The exported SVG renders differently when opened in tools like Inkscape or browsers due to missing font references or unsupported SVG features.
+*Mitigation:* Use only SVG 1.1 primitives. Inline font family names (Roboto, Arial, sans-serif) as fallback chains. Test export in Chrome, Firefox, and Inkscape before release.
+
+**R3: Large diagrams (100+ nodes) performance**
+*Risk:* A church with many groups produces a diagram that is slow to lay out and render in the browser.
+*Mitigation:* The layout algorithm is O(n) and runs outside the render cycle. SVG rendering via pure elements (no virtual DOM diffing per node) is fast. Profile at 200 nodes before shipping.
+
+**R4: Config/data file corruption**
+*Risk:* An interrupted write to `config.json` or `organigram.json` corrupts the file, breaking the app on next load.
+*Mitigation:* Write to a `.tmp` file first, then atomically rename. Wrap all file reads in try/catch and fall back to defaults (already done for config).
+
+**R5: `data/` volume not mounted in production**
+*Risk:* Administrator runs the container without mounting the `data/` volume; config and organigram data are lost on container restart.
+*Mitigation:* Document the volume mount prominently in the README. Consider writing a startup warning to the console if `data/` appears to be inside the container filesystem rather than a mount.
+
+---
+
+## 15. Appendix
+
+### Related Documents
+- Conversation design session (this document was derived from): `2026-04-25` design Q&A
+
+### Key Dependencies
+
+| Package | Purpose | Link |
+|---|---|---|
+| `hono` | Backend HTTP framework | https://hono.dev |
+| `@hono/node-server` | Node.js adapter | https://hono.dev |
+| `zod` | Schema validation | https://zod.dev |
+| `vue` | Frontend framework | https://vuejs.org |
+| `vuetify` | UI component library | https://vuetifyjs.com |
+| `@panzoom/panzoom` | SVG pan/zoom | https://github.com/timmywil/panzoom |
+| `vite` | Build tool | https://vitejs.dev |
+| `vitest` | Test runner | https://vitest.dev |
+
+### `OrgChartFile` Schema (v1)
 
 ```typescript
-// src/shared/types.ts
-
-export interface OrgChartFile {
-  schemaVersion: "1";
-  generatedAt: string;          // ISO-8601 timestamp
-  source: "churchtools" | "upload";
+interface OrgChartFile {
+  schemaVersion: '1';
+  generatedAt: string;       // ISO-8601
   nodes: OrgNode[];
 }
 
-export interface OrgNode {
-  id: string;                   // "group-{churchtools_id}"
-  parentId: string | null;      // null for root nodes
-  name: string;                 // Group display name
-  groupTypeId: number;          // ChurchTools group type ID
+interface OrgNode {
+  id: string;                // "group-{churchtools_id}"
+  parentId: string | null;   // null = root
+  name: string;
+  groupTypeId: number;
+  inactive?: boolean;
   leaders: Person[];
   coLeaders: Person[];
 }
 
-export interface Person {
-  id: number;                   // ChurchTools person ID
+interface Person {
+  id: number;
   firstName: string;
   lastName: string;
 }
+```
 
-export interface AppConfig {
-  rootGroupTypeIds: number[];
-  relevantGroupTypeIds: number[];
-  leaderRoleIds: number[];
-  coLeaderRoleIds: number[];
+### `AppConfig` Schema
+
+```typescript
+interface AppConfig {
+  rootGroupId: number;
+  groupTypes: GroupTypeConfig[];
   showCoLeaders: boolean;
+  showInactiveGroups: boolean;
   includeTags: string[];
   excludeTags: string[];
-  theme: "light" | "dark" | "system";
+  relevantGroupStatusIds: number[];
+  inactiveGroupStatusIds: number[];
+  theme: 'light' | 'dark' | 'system';
+}
+
+interface GroupTypeConfig {
+  id: number;
+  name: string;
+  color: string;             // hex, e.g. "#f5c211"
+  leaderRoleIds: number[];
+  coLeaderRoleIds: number[];
 }
 ```
 
----
+### Repository Structure (post-cleanup)
 
-## 12. Success Criteria
-
-### MVP Success Definition
-
-The MVP is complete when an administrator can open the app, trigger a ChurchTools fetch, view the resulting organigram interactively in the browser, adjust the config from the UI, and download the organigram as SVG — all from a single Dockerised container.
-
-### Functional Requirements
-
-- ✅ Fetching from ChurchTools produces a valid `OrgChartFile`
-- ✅ Filter logic correctly applies rootGroupTypeIds, relevantGroupTypeIds, includeTags, excludeTags
-- ✅ Leaders and (when enabled) co-leaders are correctly attached to group nodes
-- ✅ Organigram renders in the browser as an interactive tree
-- ✅ Expand/collapse works on all nodes
-- ✅ Persons are displayed as badges on their group node
-- ✅ Upload JSON replaces the current organigram
-- ✅ Download JSON returns a valid `OrgChartFile`
-- ✅ Config editor reads and writes all fields
-- ✅ SVG export downloads the full tree (all nodes expanded) as `organigram.svg`
-- ✅ Dark/light/system theme works and persists in config
-- ✅ Confirm dialog appears before overwriting organigram.json
-- ✅ App runs in a single Docker container with a `data/` volume
-
-### Quality Indicators
-
-- TypeScript strict mode, zero type errors
-- Both modules independently unit-testable with fixture data
-- Zod validation on all API inputs
-- No ChurchTools credentials exposed in any API response, log, or config
-
----
-
-## 13. Implementation Phases
-
-### Phase 1: Core Data Pipeline + API
-
-**Goal:** Module A is working and tested. Hono API is running. `organigram.json` can be fetched, read, uploaded, and downloaded.
-
-**Deliverables:**
-- ✅ Project scaffold: Hono + Vite + TypeScript, shared types, monorepo structure
-- ✅ Docker + `docker-compose.yml` skeleton
-- ✅ `src/shared/types.ts` — `OrgChartFile`, `OrgNode`, `Person`, `AppConfig`
-- ✅ `data/config.json` — default config
-- ✅ Module A: ChurchTools fetcher service (login, fetch 4 endpoints, filter, transform)
-- ✅ `POST /api/fetch` — runs Module A, returns `OrgChartFile`
-- ✅ `GET /api/organigram` — returns saved organigram
-- ✅ `POST /api/organigram` — validates and saves organigram
-- ✅ `GET /api/organigram/download` — file download
-- ✅ `GET /api/config` + `PUT /api/config` — config CRUD
-- ✅ Unit tests for Module A with fixture data
-
-**Validation:**
-- `POST /api/fetch` with real `.env` returns a valid `OrgChartFile`
-- Filter logic unit tests pass with fixture data (correct nodes included/excluded)
-- Organigram survives container restart (Docker volume)
-
----
-
-### Phase 2: Interactive Web Renderer
-
-**Goal:** Module B is working. The SPA loads the organigram and renders it interactively.
-
-**Deliverables:**
-- ✅ Vite + Vue 3 + Vuetify SPA scaffolded and served by Hono
-- ✅ Module B: `OrgChart.vue` wrapping `d3-org-chart` — loads `OrgChartFile`, renders tree
-- ✅ Expand/collapse on click
-- ✅ Leader badges on group nodes (co-leader badges when `showCoLeaders` is true)
-- ✅ Toolbar: Fetch (with confirm dialog), Upload JSON, Download JSON, Download SVG
-- ✅ Config editor panel: all `AppConfig` fields editable and saved via `PUT /api/config`
-- ✅ Dark/light/system theme applied to UI
-- ✅ Unit tests for chart data transformation (OrgNode → d3-org-chart node format)
-
-**Validation:**
-- Full organigram visible and interactive in browser
-- Expand/collapse works correctly
-- Config changes save and persist
-- Theme toggle works
-
----
-
-### Phase 3: Docker Polish + End-to-End Testing
-
-**Goal:** Application is production-ready in Docker, all paths tested end-to-end.
-
-**Deliverables:**
-- ✅ Optimised multi-stage Dockerfile (build stage + runtime stage)
-- ✅ `docker-compose.yml` with data volume, env_file, and port mapping
-- ✅ `.env.example` with all required variables documented
-- ✅ Default `config.json` included in image (overridden by volume)
-- ✅ End-to-end test: fetch → render → SVG download with fixture/mock ChurchTools server
-- ✅ Error handling: ChurchTools unreachable, invalid credentials, malformed upload
-
-**Validation:**
-- `docker compose up` starts successfully from a fresh clone
-- Full workflow (fetch → view → config edit → SVG download) works in Docker
-
----
-
-## 14. Future Considerations
-
-### Post-MVP Enhancements
-
-- **Person highlight** — Click a person badge to highlight all group nodes where that person is a leader
-- **Dynamic group type discovery** — Fetch available group type IDs from ChurchTools and propose them in the config editor
-- **Multiple views / filter profiles** — Save and switch between named filter configurations
-- **Scheduled fetch** — Cron-triggered automatic refresh (e.g. nightly)
-- **ChurchTools credentials in UI** — With proper secrets handling (not plain config.json)
-
-### Integration Opportunities
-
-- **GraphML export** — For use in yEd or Gephi (re-use existing proof-of-concept logic)
-- **ChurchTools webhooks** — Trigger a refresh when group data changes, if supported by the API
-- **Embeddable widget** — Iframe-embeddable organigram for internal portals
-
-### Advanced Features
-
-- **PDF export** — Server-side or client-side (jsPDF + svg2pdf.js) for print-ready output
-- **Image nodes** — Show profile photos from ChurchTools on person badges
-- **Search / filter in UI** — Highlight nodes matching a search term
-
----
-
-## 15. Risks & Mitigations
-
-| Risk | Impact | Mitigation |
-|---|---|---|
-| **ChurchTools API pagination** — `/persons?limit=500` may not return all persons in large churches. | Medium | Check `meta.pagination` in the API response and fetch additional pages if `totalCount > limit`. Handle this in Module A. |
-| **d3-org-chart maintenance** — Last published ~3 years ago; 137 open issues on GitHub. | Low–Medium | The library is MIT and the codebase is small enough to fork if needed. ApexTree.js is a documented fallback. |
-| **Large group trees** — Churches with 50+ groups may produce organigrams that are hard to read on screen. | Medium | SVG export scales infinitely; users can zoom in a vector editor. For very large trees, a future subtree export could be added. |
-| **Config edits breaking the filter** — An administrator entering an invalid group type ID could result in an empty organigram. | Low | Validate config on write (zod). Show a warning if the resulting organigram would have zero root nodes, but don't block the save. |
-
----
-
-## 16. Appendix
-
-### Key Dependencies
-
-| Package | Purpose |
-|---|---|
-| `hono` | HTTP framework |
-| `@hono/node-server` | Node.js adapter |
-| `vite` | Frontend bundler |
-| `vue` | Reactive component framework |
-| `vuetify` | Material Design component library |
-| `@mdi/font` | Material Design icons (used by Vuetify) |
-| `d3-org-chart` | Org chart renderer + SVG export |
-| `zod` | Runtime schema validation |
-| `dotenv` | `.env` loading |
-| `vitest` | Unit testing |
-
-### Existing Reference Code
-
-The original proof-of-concept in `app/` demonstrates:
-- ChurchTools login + 4 API endpoint calls
-- Role-based person filtering via `LEADER_GROUP_TYPE_ROLE_IDS`
-- Recursive group tree traversal
-- GraphML output for yEd
-
-This code is used as a reference only. The new implementation will supersede it entirely.
-
-### ChurchTools API Endpoints Used
-
-| Endpoint | Method | Purpose |
-|---|---|---|
-| `/login` | POST | Cookie-based session authentication |
-| `/groups` | GET | All groups with name and type |
-| `/persons` | GET | All persons (paginated) |
-| `/groups/members` | GET | Person-to-group role assignments |
-| `/groups/hierarchies` | GET | Parent/child relationships between groups |
+```
+churchtools-organigram/
+├── src/                    # Application source
+├── data/                   # Runtime data (volume-mounted in Docker)
+├── dist/                   # Build output (gitignored)
+├── .env.example            # Credential template
+├── Dockerfile
+├── docker-compose.yml
+├── package.json
+├── tsconfig.json
+├── tsconfig.server.json
+├── vite.config.ts
+└── vitest.config.ts
+```

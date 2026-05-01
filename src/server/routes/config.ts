@@ -1,12 +1,20 @@
 import { Hono } from 'hono';
 import { appConfigSchema } from '../../shared/schemas.js';
-import { readConfig, writeConfig } from '../services/config.js';
+import { readRawConfig, writeConfig } from '../services/config.js';
 
 const app = new Hono();
 
 app.get('/', async (c) => {
-  const config = await readConfig();
-  return c.json(config);
+  let raw: unknown | null;
+  try {
+    raw = await readRawConfig();
+  } catch {
+    return c.json({ error: 'Config file contains invalid JSON' }, 422);
+  }
+  if (raw === null) {
+    return c.json(null, 404);
+  }
+  return c.json(raw);
 });
 
 app.put('/', async (c) => {

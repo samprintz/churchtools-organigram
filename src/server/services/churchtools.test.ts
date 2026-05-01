@@ -14,10 +14,11 @@ const config: AppConfig = {
     { id: 7, name: 'Dienst', color: '#388E3C', leaderRoleIds: [1], coLeaderRoleIds: [2] },
   ],
   showCoLeaders: true,
+  showInactiveGroups: true,
   includeTags: ['organigram'],
   excludeTags: ['organigram-exclude'],
   relevantGroupStatusIds: [],
-  inactiveGroupStatusId: 2,
+  inactiveGroupStatusIds: [2],
   theme: 'system',
 };
 
@@ -93,7 +94,6 @@ describe('transformToOrgChart', () => {
   it('produces a valid OrgChartFile structure', () => {
     const result = transformToOrgChart(groups, persons, members, hierarchies, config);
     expect(result.schemaVersion).toBe('1');
-    expect(result.source).toBe('churchtools');
     expect(typeof result.generatedAt).toBe('string');
     expect(Array.isArray(result.nodes)).toBe(true);
   });
@@ -156,18 +156,12 @@ describe('transformToOrgChart', () => {
     expect(leitung.leaders[0]).toMatchObject({ id: 10, firstName: 'Anna', lastName: 'Müller' });
   });
 
-  it('attaches co-leaders when showCoLeaders is true', () => {
-    const result = transformToOrgChart(groups, persons, members, hierarchies, config);
-    const technik = result.nodes.find((n) => n.id === 'group-4')!;
-    expect(technik.coLeaders).toHaveLength(1);
-    expect(technik.coLeaders[0]).toMatchObject({ id: 13, firstName: 'David' });
-  });
-
-  it('omits co-leaders when showCoLeaders is false', () => {
+  it('always stores co-leaders regardless of showCoLeaders config', () => {
     const noCoLeaderConfig: AppConfig = { ...config, showCoLeaders: false };
     const result = transformToOrgChart(groups, persons, members, hierarchies, noCoLeaderConfig);
     const technik = result.nodes.find((n) => n.id === 'group-4')!;
-    expect(technik.coLeaders).toHaveLength(0);
+    expect(technik.coLeaders).toHaveLength(1);
+    expect(technik.coLeaders[0]).toMatchObject({ id: 13, firstName: 'David' });
   });
 
   it('sanitizes group names with special XML characters', () => {
@@ -197,10 +191,25 @@ describe('transformToOrgChart', () => {
     expect(node.leaders).toHaveLength(0);
   });
 
-  it('marks nodes with the inactiveGroupStatusId as inactive', () => {
+  it('marks nodes whose groupStatusId is in inactiveGroupStatusIds as inactive', () => {
     const result = transformToOrgChart(groups, persons, members, hierarchies, config);
     const inactive = result.nodes.find((n) => n.id === 'group-8')!;
     expect(inactive.inactive).toBe(true);
+  });
+
+  it('marks nodes inactive when matching any entry in the inactiveGroupStatusIds array', () => {
+    const multiInactiveConfig: AppConfig = { ...config, inactiveGroupStatusIds: [2, 5] };
+    const extraGroups: CTGroup[] = [
+      ...groups,
+      { id: 9, name: 'Also Inactive', information: { groupTypeId: 7, groupStatusId: 5 } },
+    ];
+    const extraHierarchies: CTHierarchy[] = [
+      ...hierarchies,
+      { groupId: 9, children: [], parents: [2] },
+    ];
+    const result = transformToOrgChart(extraGroups, persons, members, extraHierarchies, multiInactiveConfig);
+    expect(result.nodes.find((n) => n.id === 'group-8')?.inactive).toBe(true);
+    expect(result.nodes.find((n) => n.id === 'group-9')?.inactive).toBe(true);
   });
 
   it('does not set inactive on nodes with a different groupStatusId', () => {
@@ -209,8 +218,8 @@ describe('transformToOrgChart', () => {
     expect(active.inactive).toBeUndefined();
   });
 
-  it('does not set inactive when inactiveGroupStatusId is null', () => {
-    const noInactiveConfig: AppConfig = { ...config, inactiveGroupStatusId: null };
+  it('does not set inactive when inactiveGroupStatusIds is empty', () => {
+    const noInactiveConfig: AppConfig = { ...config, inactiveGroupStatusIds: [] };
     const result = transformToOrgChart(groups, persons, members, hierarchies, noInactiveConfig);
     const node = result.nodes.find((n) => n.id === 'group-8')!;
     expect(node.inactive).toBeUndefined();

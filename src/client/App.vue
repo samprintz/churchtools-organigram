@@ -8,6 +8,17 @@
       @download-json="orgDownloadJson()"
       @download-svg="onDownloadSvg"
       @toggle-config="configDrawerOpen = !configDrawerOpen"
+      @toggle-fetch-config="fetchConfigOpen = !fetchConfigOpen"
+    />
+
+    <FetchConfigDialog
+      v-model="fetchConfigOpen"
+      :config="config"
+      :config-invalid="configInvalid"
+      :saving="configLoading || orgLoading"
+      :save-error="fetchConfigError"
+      @save="onSaveFetchConfig"
+      @save-and-fetch="onSaveAndFetch"
     />
 
     <ConfigEditor
@@ -20,6 +31,17 @@
 
     <v-main style="height: 100vh; overflow: hidden;">
       <v-progress-linear v-if="orgLoading" indeterminate color="primary" />
+      <!-- Config invalid banner -->
+      <v-alert
+        v-if="configInvalid"
+        type="warning"
+        class="ma-3"
+        icon="mdi-file-alert-outline"
+      >
+        Your <code>config.json</code> is invalid and could not be loaded — default settings are being used.
+        Open <strong>Fetch Settings</strong> to review and save a valid configuration.
+      </v-alert>
+
       <!-- Error banner -->
       <v-alert
         v-if="orgError || configError"
@@ -36,8 +58,9 @@
         <OrgChart
           ref="orgChart"
           :data="organigram"
-          :show-co-leaders="config?.showCoLeaders ?? true"
-          :group-types="config?.groupTypes ?? []"
+          :show-co-leaders="config.showCoLeaders"
+          :show-inactive-groups="config.showInactiveGroups"
+          :group-types="config.groupTypes"
           @render-error="onRenderError"
         />
       </div>
@@ -89,15 +112,6 @@
         />
       </div>
     </v-main>
-
-    <!-- Confirm overwrite dialog -->
-    <ConfirmDialog
-      v-model="confirmOpen"
-      title="Overwrite organigram?"
-      message="An organigram is already saved. Do you want to replace it with the freshly fetched data?"
-      @confirm="onConfirmFetch"
-      @cancel="onCancelFetch"
-    />
   </v-app>
 </template>
 
@@ -106,30 +120,28 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useTheme } from 'vuetify';
 import Toolbar from './components/Toolbar.vue';
 import ConfigEditor from './components/ConfigEditor.vue';
+import FetchConfigDialog from './components/FetchConfigDialog.vue';
 import OrgChart from './components/OrgChart.vue';
-import ConfirmDialog from './components/ConfirmDialog.vue';
 import { useOrganigram } from './composables/useOrganigram';
 import { useConfig } from './composables/useConfig';
-import type { AppConfig, OrgChartFile } from '../../shared/types';
+import type { AppConfig } from '../shared/types';
 
 const { organigram, loading: orgLoading, error: orgError, loadOrganigram, fetchPreview, saveOrganigram, uploadFromFile, downloadJson: orgDownloadJson } = useOrganigram();
-const { config, loading: configLoading, error: configError, loadConfig, saveConfig } = useConfig();
+const { config, loading: configLoading, error: configError, configInvalid, loadConfig, saveConfig } = useConfig();
 
 const vTheme = useTheme();
 const configDrawerOpen = ref(false);
-const confirmOpen = ref(false);
-const pendingFetchData = ref<OrgChartFile | null>(null);
+const fetchConfigOpen = ref(false);
 const configSaveError = ref<string | null>(null);
+const fetchConfigError = ref<string | null>(null);
 const renderError = ref<string | null>(null);
 const orgChart = ref<InstanceType<typeof OrgChart> | null>(null);
 const hiddenFileInput = ref<HTMLInputElement | null>(null);
 
-// Apply theme based on config
 const appliedTheme = computed<'light' | 'dark'>(() => {
-  const theme = config.value?.theme ?? 'system';
+  const theme = config.value.theme;
   if (theme === 'light') return 'light';
   if (theme === 'dark') return 'dark';
-  // 'system' — use media query
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 });
 
@@ -145,32 +157,10 @@ async function onFetch(): Promise<void> {
   renderError.value = null;
   try {
     const data = await fetchPreview();
-    if (organigram.value) {
-      pendingFetchData.value = data;
-      confirmOpen.value = true;
-    } else {
-      await saveOrganigram(data);
-    }
+    await saveOrganigram(data);
   } catch {
     // error already set in composable
   }
-}
-
-async function onConfirmFetch(): Promise<void> {
-  confirmOpen.value = false;
-  if (!pendingFetchData.value) return;
-  try {
-    await saveOrganigram(pendingFetchData.value);
-  } catch {
-    // error already set in composable
-  } finally {
-    pendingFetchData.value = null;
-  }
-}
-
-function onCancelFetch(): void {
-  confirmOpen.value = false;
-  pendingFetchData.value = null;
 }
 
 function onRenderError(message: string): void {
@@ -198,6 +188,34 @@ async function onSaveConfig(newConfig: AppConfig): Promise<void> {
     configDrawerOpen.value = false;
   } catch (e) {
     configSaveError.value = e instanceof Error ? e.message : 'Failed to save config';
+  }
+}
+
+async function onSaveFetchConfig(newConfig: AppConfig): Promise<void> {
+  fetchConfigError.value = null;
+  try {
+    await saveConfig(newConfig);
+    fetchConfigOpen.value = false;
+  } catch (e) {
+    fetchConfigError.value = e instanceof Error ? e.message : 'Failed to save config';
+  }
+}
+
+async function onSaveAndFetch(newConfig: AppConfig): Promise<void> {
+  fetchConfigError.value = null;
+  try {
+    await saveConfig(newConfig);
+  } catch (e) {
+    fetchConfigError.value = e instanceof Error ? e.message : 'Failed to save config';
+    return;
+  }
+  fetchConfigOpen.value = false;
+  renderError.value = null;
+  try {
+    const data = await fetchPreview();
+    await saveOrganigram(data);
+  } catch {
+    // error already set in composable
   }
 }
 

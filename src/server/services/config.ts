@@ -11,12 +11,19 @@ const DEFAULT_CONFIG: AppConfig = {
   rootGroupId: 0,
   groupTypes: [],
   showCoLeaders: true,
+  showInactiveGroups: true,
   includeTags: [],
   excludeTags: [],
   relevantGroupStatusIds: [],
-  inactiveGroupStatusId: null,
+  inactiveGroupStatusIds: [],
   theme: 'system',
 };
+
+export async function readRawConfig(): Promise<unknown | null> {
+  const raw = await fs.readFile(CONFIG_PATH, 'utf-8').catch(() => null);
+  if (raw === null) return null;
+  return JSON.parse(raw); // throws SyntaxError on invalid JSON
+}
 
 export async function readConfig(): Promise<AppConfig> {
   try {

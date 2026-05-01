@@ -19,7 +19,6 @@ export const orgNodeSchema = z.object({
 export const orgChartFileSchema = z.object({
   schemaVersion: z.literal('1'),
   generatedAt: z.string(),
-  source: z.enum(['churchtools', 'upload']),
   nodes: z.array(orgNodeSchema),
 });
 
@@ -35,9 +34,10 @@ export const appConfigSchema = z.object({
   rootGroupId: z.number(),
   groupTypes: z.array(groupTypeConfigSchema),
   showCoLeaders: z.boolean(),
+  showInactiveGroups: z.boolean(),
   includeTags: z.array(z.string()),
   excludeTags: z.array(z.string()),
   relevantGroupStatusIds: z.array(z.number()),
-  inactiveGroupStatusId: z.number().nullable(),
+  inactiveGroupStatusIds: z.array(z.number()),
   theme: z.enum(['light', 'dark', 'system']),
 });

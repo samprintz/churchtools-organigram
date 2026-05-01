@@ -257,19 +257,14 @@ export function transformToOrgChart(
 
       if (groupTypeConfig?.leaderRoleIds.includes(member.groupTypeRoleId)) {
         leaders.push(personData);
-      } else if (
-        config.showCoLeaders &&
-        groupTypeConfig?.coLeaderRoleIds.includes(member.groupTypeRoleId)
-      ) {
+      } else if (groupTypeConfig?.coLeaderRoleIds.includes(member.groupTypeRoleId)) {
         coLeaders.push(personData);
       }
     }
 
-    const inactive =
-      config.inactiveGroupStatusId !== null &&
-      group.information.groupStatusId === config.inactiveGroupStatusId
-        ? true
-        : undefined;
+    const inactive = config.inactiveGroupStatusIds.includes(group.information.groupStatusId)
+      ? true
+      : undefined;
 
     nodes.push({
       id: `group-${groupId}`,
@@ -285,7 +280,6 @@ export function transformToOrgChart(
   return {
     schemaVersion: '1',
     generatedAt: new Date().toISOString(),
-    source: 'churchtools',
     nodes,
   };
 }

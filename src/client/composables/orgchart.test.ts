@@ -2,18 +2,15 @@ import { describe, expect, it } from 'vitest';
 import type { OrgChartFile, OrgNode } from '../../shared/types.js';
 
 // ---------------------------------------------------------------------------
-// Helpers that validate OrgChartFile nodes are compatible with d3-org-chart
+// Helpers
 // ---------------------------------------------------------------------------
 
-function validateD3Compatibility(file: OrgChartFile): {
-  valid: boolean;
-  errors: string[];
-} {
+function validateOrgChartFile(file: OrgChartFile): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
   const ids = new Set(file.nodes.map((n) => n.id));
 
   for (const node of file.nodes) {
-    if (!node.id) errors.push(`Node missing id`);
+    if (!node.id) errors.push('Node missing id');
     if (node.parentId !== null && !ids.has(node.parentId)) {
       errors.push(`Node ${node.id} references unknown parentId: ${node.parentId}`);
     }
@@ -43,7 +40,6 @@ function getNodeDepth(id: string, nodeMap: Map<string, OrgNode>, memo = new Map<
 const sampleFile: OrgChartFile = {
   schemaVersion: '1',
   generatedAt: '2024-01-01T00:00:00.000Z',
-  source: 'churchtools',
   nodes: [
     {
       id: 'group-1',
@@ -76,7 +72,7 @@ const sampleFile: OrgChartFile = {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('OrgChartFile d3-org-chart compatibility', () => {
+describe('OrgChartFile structure', () => {
   it('has id and parentId on every node', () => {
     for (const node of sampleFile.nodes) {
       expect(typeof node.id).toBe('string');
@@ -84,8 +80,8 @@ describe('OrgChartFile d3-org-chart compatibility', () => {
     }
   });
 
-  it('passes d3 compatibility validation', () => {
-    const result = validateD3Compatibility(sampleFile);
+  it('passes structural validation', () => {
+    const result = validateOrgChartFile(sampleFile);
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
@@ -115,10 +111,10 @@ describe('OrgChartFile d3-org-chart compatibility', () => {
     const broken: OrgChartFile = {
       ...sampleFile,
       nodes: [
-        { ...sampleFile.nodes[0], parentId: 'group-999' }, // non-existent parent
+        { ...sampleFile.nodes[0], parentId: 'group-999' },
       ],
     };
-    const result = validateD3Compatibility(broken);
+    const result = validateOrgChartFile(broken);
     expect(result.valid).toBe(false);
     expect(result.errors[0]).toContain('group-999');
   });
@@ -128,10 +124,10 @@ describe('OrgChartFile d3-org-chart compatibility', () => {
       ...sampleFile,
       nodes: sampleFile.nodes.map((n) => ({
         ...n,
-        parentId: n.parentId ?? 'group-999', // force all to have a parentId
+        parentId: n.parentId ?? 'group-999',
       })),
     };
-    const result = validateD3Compatibility(noRoot);
+    const result = validateOrgChartFile(noRoot);
     expect(result.valid).toBe(false);
   });
 
@@ -144,7 +140,7 @@ describe('OrgChartFile d3-org-chart compatibility', () => {
 
   it('empty organigram is valid', () => {
     const empty: OrgChartFile = { ...sampleFile, nodes: [] };
-    const result = validateD3Compatibility(empty);
+    const result = validateOrgChartFile(empty);
     expect(result.valid).toBe(true);
   });
 });

@@ -17,7 +17,6 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY --from=build /app/dist ./dist
-COPY data/config.json ./data/config.json
 
 EXPOSE 3000
 CMD ["node", "dist/server/index.js"]

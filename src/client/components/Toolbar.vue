@@ -6,16 +6,20 @@
     </v-app-bar-title>
 
     <template #append>
-      <v-btn
-        prepend-icon="mdi-cloud-download-outline"
-        :loading="loading"
-        variant="tonal"
-        color="primary"
-        class="me-2"
-        @click="emit('fetch')"
-      >
-        Fetch
-      </v-btn>
+      <v-btn-group variant="tonal" color="primary" class="me-2">
+        <v-btn
+          prepend-icon="mdi-cloud-download-outline"
+          :loading="loading"
+          @click="emit('fetch')"
+        >
+          Fetch
+        </v-btn>
+        <v-btn
+          icon="mdi-cog-outline"
+          title="Fetch Settings"
+          @click="emit('toggle-fetch-config')"
+        />
+      </v-btn-group>
 
       <v-btn
         icon="mdi-upload-outline"
@@ -48,9 +52,9 @@
       />
 
       <v-btn
-        icon="mdi-cog-outline"
+        icon="mdi-tune"
         variant="text"
-        title="Config"
+        title="Display Settings"
         @click="emit('toggle-config')"
       />
     </template>
@@ -71,6 +75,7 @@ const emit = defineEmits<{
   'download-json': [];
   'download-svg': [];
   'toggle-config': [];
+  'toggle-fetch-config': [];
 }>();
 
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -84,7 +89,6 @@ function onFileChange(event: Event): void {
   const file = input.files?.[0];
   if (file) {
     emit('upload', file);
-    // Reset so the same file can be re-uploaded
     input.value = '';
   }
 }

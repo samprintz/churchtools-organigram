@@ -1,7 +1,6 @@
 export interface OrgChartFile {
   schemaVersion: '1';
   generatedAt: string; // ISO-8601
-  source: 'churchtools' | 'upload';
   nodes: OrgNode[];
 }
 
@@ -33,9 +32,10 @@ export interface AppConfig {
   rootGroupId: number;
   groupTypes: GroupTypeConfig[];
   showCoLeaders: boolean;
+  showInactiveGroups: boolean;
   includeTags: string[];
   excludeTags: string[];
   relevantGroupStatusIds: number[];
-  inactiveGroupStatusId: number | null;
+  inactiveGroupStatusIds: number[];
   theme: 'light' | 'dark' | 'system';
 }
