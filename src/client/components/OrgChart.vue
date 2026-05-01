@@ -1,299 +1,132 @@
 <template>
-  <div ref="container" class="org-chart-container" tabindex="0" @keydown.esc="clearHighlight">
-    <svg ref="svgEl" style="display:block;overflow:visible;width:100%;height:100%;">
-      <g ref="svgGroup">
-        <!-- Transparent hit area so panning works over empty space between columns -->
-        <rect
-          v-if="layout.totalWidth > 0 && layout.totalHeight > 0"
-          :x="0" :y="0"
-          :width="layout.totalWidth" :height="layout.totalHeight"
-          fill="transparent"
-        />
-        <template v-for="geo in layout.nodes" :key="geo.id">
-          <!-- Level 1: root -->
-          <template v-if="geo.level === 1">
-            <rect
-              :x="geo.x" :y="geo.y" :width="geo.width" :height="geo.height"
-              :rx="6"
-              :fill="cardBg(geo.node)"
-              :stroke="cardBorder(geo.node)"
-              stroke-width="1"
-              :opacity="geo.node.inactive ? 0.5 : 1"
-            />
-            <rect
-              :x="geo.x" :y="geo.y" :width="geo.width" :height="LAYOUT.ROOT_HEIGHT"
-              :rx="6"
-              :fill="headerColor(geo.node)"
-            />
-            <rect
-              :x="geo.x" :y="geo.y + LAYOUT.ROOT_HEIGHT - 6" :width="geo.width" :height="6"
-              :fill="headerColor(geo.node)"
-            />
-            <text
-              :x="geo.x + geo.width / 2"
-              :y="geo.y + LAYOUT.ROOT_HEIGHT / 2"
-              text-anchor="middle"
-              dominant-baseline="central"
-              font-family="Roboto,Arial,sans-serif"
-              font-size="13"
-              font-weight="600"
-              fill="#ffffff"
-            >{{ geo.node.name }}</text>
-            <template v-for="(p, pi) in visibleLeaders(geo.node)" :key="`${geo.id}-l-${p.id}`">
-              <rect
-                :x="geo.x + 6"
-                :y="geo.y + LAYOUT.ROOT_HEIGHT + LAYOUT.PERSON_PADDING_TOP + pi * LAYOUT.PERSON_ROW_HEIGHT"
-                :width="geo.width - 12"
-                :height="LAYOUT.PERSON_ROW_HEIGHT - 2"
-                rx="8"
-                :fill="highlightedPersonId === p.id ? '#FFF176' : leaderBg(geo.node)"
-                style="cursor:pointer"
-                @click="toggleHighlight(p.id)"
-              />
-              <text
-                :x="geo.x + geo.width / 2"
-                :y="geo.y + LAYOUT.ROOT_HEIGHT + LAYOUT.PERSON_PADDING_TOP + pi * LAYOUT.PERSON_ROW_HEIGHT + (LAYOUT.PERSON_ROW_HEIGHT - 2) / 2"
-                text-anchor="middle"
-                dominant-baseline="central"
-                font-family="Roboto,Arial,sans-serif"
-                font-size="11"
-                :fill="highlightedPersonId === p.id ? '#333' : leaderColor(geo.node)"
-                style="cursor:pointer;pointer-events:none"
-              >{{ p.firstName }} {{ p.lastName }}</text>
-            </template>
-            <!-- Highlight border -->
-            <rect
-              v-if="isHighlighted(geo.node)"
-              :x="geo.x - 2" :y="geo.y - 2" :width="geo.width + 4" :height="geo.height + 4"
-              rx="8" fill="none" stroke="#F57F17" stroke-width="3"
-            />
-          </template>
+  <div ref="containerEl" class="org-chart-container" tabindex="0" @keydown.esc="clearHighlight">
+    <div v-if="tree" ref="chartEl" style="display: inline-flex; flex-direction: column;">
+      <!-- Root (L1) -->
+      <div class="chart-root-row">
+        <div
+          class="org-card org-card--l1"
+          :class="{ 'org-card--highlighted': isHighlighted(tree.root.node), 'org-card--inactive': tree.root.node.inactive }"
+        >
+          <div class="card-header card-header--l1">{{ tree.root.node.name }}</div>
+          <div v-if="tree.root.node.leaders.length || (props.showCoLeaders && tree.root.node.coLeaders.length)" class="person-area-wrap">
+            <div
+              v-for="p in tree.root.node.leaders"
+              :key="`l-${p.id}`"
+              class="person-pill person-pill--leader"
+              :class="{ 'person-pill--highlighted': highlightedPersonId === p.id }"
+              @click="toggleHighlight(p.id)"
+            >{{ p.firstName }} {{ p.lastName }}</div>
+            <div
+              v-for="p in visibleCoLeaders(tree.root.node)"
+              :key="`c-${p.id}`"
+              class="person-pill person-pill--coleader"
+              :class="{ 'person-pill--highlighted': highlightedPersonId === p.id }"
+              @click="toggleHighlight(p.id)"
+            >{{ p.firstName }} {{ p.lastName }}</div>
+          </div>
+        </div>
+      </div>
 
-          <!-- Level 2: column header -->
-          <template v-else-if="geo.level === 2">
-            <rect
-              :x="geo.x" :y="geo.y" :width="geo.width" :height="geo.height"
-              :rx="5"
-              :fill="cardBg(geo.node)"
-              :stroke="isHighlighted(geo.node) ? '#F57F17' : cardBorder(geo.node)"
-              :stroke-width="isHighlighted(geo.node) ? 3 : 1"
-              :opacity="geo.node.inactive ? 0.5 : 1"
-            />
-            <rect
-              :x="geo.x" :y="geo.y" :width="geo.width" :height="LAYOUT.L2_HEADER_HEIGHT"
-              :rx="5"
-              :fill="headerColor(geo.node)"
-            />
-            <rect
-              :x="geo.x" :y="geo.y + LAYOUT.L2_HEADER_HEIGHT - 5" :width="geo.width" :height="5"
-              :fill="headerColor(geo.node)"
-            />
-            <text
-              :x="geo.x + geo.width / 2"
-              :y="geo.y + LAYOUT.L2_HEADER_HEIGHT / 2"
-              text-anchor="middle"
-              dominant-baseline="central"
-              font-family="Roboto,Arial,sans-serif"
-              font-size="12"
-              font-weight="600"
-              fill="#ffffff"
-            >{{ geo.node.name }}</text>
-            <template v-for="(p, pi) in visibleLeaders(geo.node)" :key="`${geo.id}-l-${p.id}`">
-              <rect
-                :x="geo.x + 6"
-                :y="geo.y + LAYOUT.L2_HEADER_HEIGHT + LAYOUT.PERSON_PADDING_TOP + pi * LAYOUT.PERSON_ROW_HEIGHT"
-                :width="geo.width - 12"
-                :height="LAYOUT.PERSON_ROW_HEIGHT - 2"
-                rx="8"
-                :fill="highlightedPersonId === p.id ? '#FFF176' : leaderBg(geo.node)"
-                style="cursor:pointer"
+      <!-- Columns -->
+      <div class="chart-columns">
+        <div
+          v-for="col in tree.columns"
+          :key="col.node.id"
+          class="chart-column"
+        >
+          <!-- L2 card -->
+          <div
+            class="org-card org-card--l2"
+            :class="{ 'org-card--highlighted': isHighlighted(col.node), 'org-card--inactive': col.node.inactive }"
+          >
+            <div class="card-header card-header--l2">{{ col.node.name }}</div>
+            <div v-if="col.node.leaders.length || (props.showCoLeaders && col.node.coLeaders.length)" class="person-area-wrap">
+              <div
+                v-for="p in col.node.leaders"
+                :key="`l-${p.id}`"
+                class="person-pill person-pill--leader"
+                :class="{ 'person-pill--highlighted': highlightedPersonId === p.id }"
                 @click="toggleHighlight(p.id)"
-              />
-              <text
-                :x="geo.x + geo.width / 2"
-                :y="geo.y + LAYOUT.L2_HEADER_HEIGHT + LAYOUT.PERSON_PADDING_TOP + pi * LAYOUT.PERSON_ROW_HEIGHT + (LAYOUT.PERSON_ROW_HEIGHT - 2) / 2"
-                text-anchor="middle"
-                dominant-baseline="central"
-                font-family="Roboto,Arial,sans-serif"
-                font-size="11"
-                :fill="highlightedPersonId === p.id ? '#333' : leaderColor(geo.node)"
-                style="cursor:pointer;pointer-events:none"
-              >{{ p.firstName }} {{ p.lastName }}</text>
-            </template>
-            <template v-for="(p, pi) in visibleCoLeaders(geo.node)" :key="`${geo.id}-cl-${p.id}`">
-              <rect
-                :x="geo.x + 6"
-                :y="geo.y + LAYOUT.L2_HEADER_HEIGHT + LAYOUT.PERSON_PADDING_TOP + (visibleLeaders(geo.node).length + pi) * LAYOUT.PERSON_ROW_HEIGHT"
-                :width="geo.width - 12"
-                :height="LAYOUT.PERSON_ROW_HEIGHT - 2"
-                rx="8"
-                :fill="highlightedPersonId === p.id ? '#FFF176' : coLeaderBg(geo.node)"
-                style="cursor:pointer"
+              >{{ p.firstName }} {{ p.lastName }}</div>
+              <div
+                v-for="p in visibleCoLeaders(col.node)"
+                :key="`c-${p.id}`"
+                class="person-pill person-pill--coleader"
+                :class="{ 'person-pill--highlighted': highlightedPersonId === p.id }"
                 @click="toggleHighlight(p.id)"
-              />
-              <text
-                :x="geo.x + geo.width / 2"
-                :y="geo.y + LAYOUT.L2_HEADER_HEIGHT + LAYOUT.PERSON_PADDING_TOP + (visibleLeaders(geo.node).length + pi) * LAYOUT.PERSON_ROW_HEIGHT + (LAYOUT.PERSON_ROW_HEIGHT - 2) / 2"
-                text-anchor="middle"
-                dominant-baseline="central"
-                font-family="Roboto,Arial,sans-serif"
-                font-size="11"
-                :fill="highlightedPersonId === p.id ? '#333' : coLeaderColor(geo.node)"
-                style="cursor:pointer;pointer-events:none"
-              >{{ p.firstName }} {{ p.lastName }}</text>
-            </template>
-          </template>
+              >{{ p.firstName }} {{ p.lastName }}</div>
+            </div>
+          </div>
 
-          <!-- Level 3: box with L4 subboxes inside -->
-          <template v-else-if="geo.level === 3">
-            <rect
-              :x="geo.x" :y="geo.y" :width="geo.width" :height="geo.height"
-              :rx="4"
-              :fill="cardBg(geo.node)"
-              :stroke="isHighlighted(geo.node) ? '#F57F17' : cardBorder(geo.node)"
-              :stroke-width="isHighlighted(geo.node) ? 3 : 1"
-              :opacity="geo.node.inactive ? 0.5 : 1"
-            />
-            <rect
-              :x="geo.x" :y="geo.y" :width="geo.width" :height="LAYOUT.L3_HEADER_HEIGHT"
-              :rx="4"
-              :fill="headerColor(geo.node)"
-            />
-            <rect
-              :x="geo.x" :y="geo.y + LAYOUT.L3_HEADER_HEIGHT - 4" :width="geo.width" :height="4"
-              :fill="headerColor(geo.node)"
-            />
-            <text
-              :x="geo.x + geo.width / 2"
-              :y="geo.y + LAYOUT.L3_HEADER_HEIGHT / 2"
-              text-anchor="middle"
-              dominant-baseline="central"
-              font-family="Roboto,Arial,sans-serif"
-              font-size="11"
-              font-weight="600"
-              fill="#ffffff"
-            >{{ geo.node.name }}</text>
-            <template v-for="(p, pi) in visibleLeaders(geo.node)" :key="`${geo.id}-l-${p.id}`">
-              <rect
-                :x="geo.x + 6"
-                :y="geo.y + LAYOUT.L3_HEADER_HEIGHT + LAYOUT.PERSON_PADDING_TOP + pi * LAYOUT.PERSON_ROW_HEIGHT"
-                :width="geo.width - 12"
-                :height="LAYOUT.PERSON_ROW_HEIGHT - 2"
-                rx="8"
-                :fill="highlightedPersonId === p.id ? '#FFF176' : leaderBg(geo.node)"
-                style="cursor:pointer"
-                @click="toggleHighlight(p.id)"
-              />
-              <text
-                :x="geo.x + geo.width / 2"
-                :y="geo.y + LAYOUT.L3_HEADER_HEIGHT + LAYOUT.PERSON_PADDING_TOP + pi * LAYOUT.PERSON_ROW_HEIGHT + (LAYOUT.PERSON_ROW_HEIGHT - 2) / 2"
-                text-anchor="middle"
-                dominant-baseline="central"
-                font-family="Roboto,Arial,sans-serif"
-                font-size="11"
-                :fill="highlightedPersonId === p.id ? '#333' : leaderColor(geo.node)"
-                style="cursor:pointer;pointer-events:none"
-              >{{ p.firstName }} {{ p.lastName }}</text>
-            </template>
-            <template v-for="(p, pi) in visibleCoLeaders(geo.node)" :key="`${geo.id}-cl-${p.id}`">
-              <rect
-                :x="geo.x + 6"
-                :y="geo.y + LAYOUT.L3_HEADER_HEIGHT + LAYOUT.PERSON_PADDING_TOP + (visibleLeaders(geo.node).length + pi) * LAYOUT.PERSON_ROW_HEIGHT"
-                :width="geo.width - 12"
-                :height="LAYOUT.PERSON_ROW_HEIGHT - 2"
-                rx="8"
-                :fill="highlightedPersonId === p.id ? '#FFF176' : coLeaderBg(geo.node)"
-                style="cursor:pointer"
-                @click="toggleHighlight(p.id)"
-              />
-              <text
-                :x="geo.x + geo.width / 2"
-                :y="geo.y + LAYOUT.L3_HEADER_HEIGHT + LAYOUT.PERSON_PADDING_TOP + (visibleLeaders(geo.node).length + pi) * LAYOUT.PERSON_ROW_HEIGHT + (LAYOUT.PERSON_ROW_HEIGHT - 2) / 2"
-                text-anchor="middle"
-                dominant-baseline="central"
-                font-family="Roboto,Arial,sans-serif"
-                font-size="11"
-                :fill="highlightedPersonId === p.id ? '#333' : coLeaderColor(geo.node)"
-                style="cursor:pointer;pointer-events:none"
-              >{{ p.firstName }} {{ p.lastName }}</text>
-            </template>
-          </template>
-
-          <!-- Level 4: dot + label box + flowing pills, no outer box -->
-          <template v-else-if="geo.level === 4">
-            <g
-              v-for="ll in [l4LayoutFor(geo)]"
-              :key="geo.id + '-l4'"
-              :opacity="geo.node.inactive ? 0.5 : 1"
+          <!-- L3 cards stacked below L2 -->
+          <div class="chart-l3-stack">
+            <div
+              v-for="l3 in col.children"
+              :key="l3.node.id"
+              class="org-card org-card--l3"
+              :class="{ 'org-card--highlighted': isHighlighted(l3.node), 'org-card--inactive': l3.node.inactive }"
             >
-              <!-- Colored bullet dot -->
-              <circle
-                :cx="ll.dotCX"
-                :cy="ll.dotCY"
-                :r="LAYOUT.L4_DOT_RADIUS"
-                :fill="groupTypeColor(geo.node)"
-              />
-              <!-- Label box (subtle tinted background + border) -->
-              <rect
-                :x="ll.labelX"
-                :y="ll.labelY"
-                :width="ll.labelW"
-                :height="ll.labelH"
-                rx="3"
-                :fill="l4LabelBg(geo.node)"
-                :stroke="isHighlighted(geo.node) ? '#F57F17' : l4LabelBorder(geo.node)"
-                :stroke-width="isHighlighted(geo.node) ? 2 : 0.75"
-              />
-              <!-- Label text -->
-              <text
-                :x="ll.labelX + LAYOUT.L4_LABEL_PAD_H"
-                :y="ll.labelY + ll.labelH / 2"
-                dominant-baseline="central"
-                font-family="Roboto,Arial,sans-serif"
-                font-size="10"
-                font-weight="600"
-                :fill="l4LabelTextColor()"
-                style="pointer-events:none"
-              >{{ geo.node.name }}</text>
-              <!-- +N hidden sub-groups indicator -->
-              <text
-                v-if="ll.plusNText"
-                :x="ll.plusNX"
-                :y="ll.plusNY"
-                dominant-baseline="central"
-                font-family="Roboto,Arial,sans-serif"
-                font-size="9"
-                :fill="dark ? '#999999' : '#9e9e9e'"
-                style="pointer-events:none"
-              >{{ ll.plusNText }}</text>
-              <!-- Leader and co-leader pills -->
-              <template v-for="pill in ll.pills" :key="`${geo.id}-pill-${pill.person.id}-${pill.isLeader}`">
-                <rect
-                  :x="pill.x"
-                  :y="pill.y"
-                  :width="pill.w"
-                  :height="pill.h"
-                  rx="6"
-                  :fill="highlightedPersonId === pill.person.id ? '#FFF176' : (pill.isLeader ? leaderBg(geo.node) : coLeaderBg(geo.node))"
-                  style="cursor:pointer"
-                  @click="toggleHighlight(pill.person.id)"
-                />
-                <text
-                  :x="pill.x + pill.w / 2"
-                  :y="pill.y + pill.h / 2"
-                  text-anchor="middle"
-                  dominant-baseline="central"
-                  font-family="Roboto,Arial,sans-serif"
-                  font-size="10"
-                  :fill="highlightedPersonId === pill.person.id ? '#333' : (pill.isLeader ? leaderColor(geo.node) : coLeaderColor(geo.node))"
-                  style="pointer-events:none"
-                >{{ pill.person.firstName }} {{ pill.person.lastName }}</text>
-              </template>
-            </g>
-          </template>
-        </template>
-      </g>
-    </svg>
+              <div class="card-header card-header--l3">{{ l3.node.name }}</div>
+              <div v-if="l3.node.leaders.length || (props.showCoLeaders && l3.node.coLeaders.length)" class="person-area-wrap">
+                <div
+                  v-for="p in l3.node.leaders"
+                  :key="`l-${p.id}`"
+                  class="person-pill person-pill--leader"
+                  :class="{ 'person-pill--highlighted': highlightedPersonId === p.id }"
+                  @click="toggleHighlight(p.id)"
+                >{{ p.firstName }} {{ p.lastName }}</div>
+                <div
+                  v-for="p in visibleCoLeaders(l3.node)"
+                  :key="`c-${p.id}`"
+                  class="person-pill person-pill--coleader"
+                  :class="{ 'person-pill--highlighted': highlightedPersonId === p.id }"
+                  @click="toggleHighlight(p.id)"
+                >{{ p.firstName }} {{ p.lastName }}</div>
+              </div>
+
+              <!-- L4 items inside L3 -->
+              <div v-if="l3.children.length" class="l4-items">
+                <div
+                  v-for="l4 in l3.children"
+                  :key="l4.node.id"
+                  class="l4-item"
+                  :class="{ 'l4-item--inactive': l4.node.inactive }"
+                  :style="nodeStyle(l4.node)"
+                >
+                  <!-- Colored bullet dot (fixed, does not wrap with pills) -->
+                  <span class="l4-dot"></span>
+                  <!-- Label + pills in a wrapping flex container, aligned to label not dot -->
+                  <div class="l4-label-wrap">
+                    <span
+                      class="l4-label"
+                      :class="{ 'l4-label--highlighted': isHighlighted(l4.node) }"
+                    >{{ l4.node.name }}</span>
+                    <!-- +N hidden sub-groups indicator -->
+                    <span v-if="l4.hiddenChildren.length" class="l4-plus-n">+{{ l4.hiddenChildren.length }}</span>
+                    <!-- Leader pills -->
+                    <span
+                      v-for="p in l4.node.leaders"
+                      :key="`l-${p.id}`"
+                      class="l4-pill l4-pill--leader"
+                      :class="{ 'l4-pill--highlighted': highlightedPersonId === p.id }"
+                      @click="toggleHighlight(p.id)"
+                    >{{ p.firstName }} {{ p.lastName }}</span>
+                    <!-- Co-leader pills -->
+                    <span
+                      v-for="p in visibleCoLeaders(l4.node)"
+                      :key="`c-${p.id}`"
+                      class="l4-pill l4-pill--coleader"
+                      :class="{ 'l4-pill--highlighted': highlightedPersonId === p.id }"
+                      @click="toggleHighlight(p.id)"
+                    >{{ p.firstName }} {{ p.lastName }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Floating clear-highlight button -->
     <div
@@ -309,126 +142,48 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
-import { useTheme } from 'vuetify';
 import type Panzoom from '@panzoom/panzoom';
-import type { GroupTypeConfig, OrgChartFile, OrgNode, Person } from '../../../shared/types';
-import { computeLayout, computeL4ElementLayout, LAYOUT } from '../lib/orgChartLayout';
-import type { LayoutGeometry, L4ElementLayout } from '../lib/orgChartLayout';
+import type { OrgChartFile, OrgNode, Person } from '../../../shared/types';
+import { buildOrgTree } from '../lib/orgChartLayout';
+import { ctColorToHex } from '../lib/chartColors';
 
 const props = defineProps<{
   data: OrgChartFile;
   showCoLeaders: boolean;
   showInactiveGroups: boolean;
-  groupTypes: GroupTypeConfig[];
 }>();
 
-const theme = useTheme();
-const container = ref<HTMLDivElement | null>(null);
-const svgEl = ref<SVGSVGElement | null>(null);
-const svgGroup = ref<SVGGElement | null>(null);
+const containerEl = ref<HTMLDivElement | null>(null);
+const chartEl = ref<HTMLDivElement | null>(null);
 const highlightedPersonId = ref<number | null>(null);
 
 let panzoomInstance: InstanceType<typeof Panzoom> | null = null;
 let wheelHandler: ((e: WheelEvent) => void) | null = null;
 
 // ---------------------------------------------------------------------------
-// Layout
+// Tree
 // ---------------------------------------------------------------------------
 
-const layout = computed(() =>
-  computeLayout(props.data.nodes, props.showInactiveGroups, props.showCoLeaders),
-);
+const tree = computed(() => buildOrgTree(props.data.nodes, props.showInactiveGroups));
 
 // ---------------------------------------------------------------------------
-// Theme helpers
+// Color
 // ---------------------------------------------------------------------------
 
-const dark = computed(() => theme.global.name.value === 'dark');
-
-function groupTypeColor(node: OrgNode): string {
-  if (node.inactive) return '#9e9e9e';
-  return props.groupTypes.find((gt) => gt.id === node.groupTypeId)?.color ?? '#1976D2';
-}
-
-function headerColor(node: OrgNode): string {
-  const base = groupTypeColor(node);
-  if (!dark.value || node.inactive) return base;
-  // darken in dark mode
-  const r = parseInt(base.slice(1, 3), 16);
-  const g = parseInt(base.slice(3, 5), 16);
-  const b = parseInt(base.slice(5, 7), 16);
-  return `rgb(${Math.round(r * 0.6)},${Math.round(g * 0.6)},${Math.round(b * 0.6)})`;
-}
-
-function cardBg(node: OrgNode): string {
-  if (node.inactive) return dark.value ? '#3a3a3a' : '#f5f5f5';
-  return dark.value ? '#2d2d2d' : '#ffffff';
-}
-
-function cardBorder(node: OrgNode): string {
-  if (node.inactive) return dark.value ? '#555' : '#bdbdbd';
-  return dark.value ? '#424242' : '#e0e0e0';
-}
-
-function leaderBg(node: OrgNode): string {
-  if (node.inactive) return dark.value ? '#2a2a2a' : '#eeeeee';
-  return dark.value ? '#1a3a5c' : '#E3F2FD';
-}
-
-function leaderColor(node: OrgNode): string {
-  if (node.inactive) return dark.value ? '#888' : '#757575';
-  return dark.value ? '#90CAF9' : '#0D47A1';
-}
-
-function coLeaderBg(node: OrgNode): string {
-  if (node.inactive) return dark.value ? '#2a2a2a' : '#eeeeee';
-  return dark.value ? '#3b1f45' : '#F3E5F5';
-}
-
-function coLeaderColor(node: OrgNode): string {
-  if (node.inactive) return dark.value ? '#888' : '#757575';
-  return dark.value ? '#CE93D8' : '#7B1FA2';
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
-}
-
-function l4LabelBg(node: OrgNode): string {
-  if (node.inactive) return dark.value ? 'rgba(100,100,100,0.12)' : 'rgba(150,150,150,0.08)';
-  return hexToRgba(groupTypeColor(node), dark.value ? 0.18 : 0.10);
-}
-
-function l4LabelBorder(node: OrgNode): string {
-  if (node.inactive) return dark.value ? 'rgba(100,100,100,0.25)' : 'rgba(150,150,150,0.2)';
-  return hexToRgba(groupTypeColor(node), dark.value ? 0.45 : 0.30);
-}
-
-function l4LabelTextColor(): string {
-  return dark.value ? '#d0d0d0' : '#333333';
-}
-
-function l4LayoutFor(geo: LayoutGeometry): L4ElementLayout {
-  return computeL4ElementLayout(geo, props.showCoLeaders);
+function nodeStyle(node: OrgNode): Record<string, string> {
+  return { '--node-color': ctColorToHex(node.color) };
 }
 
 // ---------------------------------------------------------------------------
 // Person visibility
 // ---------------------------------------------------------------------------
 
-function visibleLeaders(node: OrgNode): Person[] {
-  return node.leaders;
-}
-
 function visibleCoLeaders(node: OrgNode): Person[] {
   return props.showCoLeaders ? node.coLeaders : [];
 }
 
 // ---------------------------------------------------------------------------
-// Person highlight
+// Highlight
 // ---------------------------------------------------------------------------
 
 const highlightedNodeIds = computed<Set<string>>(() => {
@@ -456,30 +211,36 @@ function clearHighlight(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Panzoom
+// Panzoom (HTML element with transform-origin 50% 50%)
 // ---------------------------------------------------------------------------
 
 function computeStartTransform(): { startScale: number; startX: number; startY: number } {
   const padding = 16;
-  if (!container.value) return { startScale: 1, startX: padding, startY: padding };
-  const containerW = container.value.clientWidth;
-  const diagramW = layout.value.totalWidth;
-  if (containerW <= 0 || diagramW <= 0) return { startScale: 1, startX: padding, startY: padding };
-  const startScale = Math.min(1, (containerW - padding * 2) / diagramW);
-  const startX = Math.max(padding, (containerW - diagramW * startScale) / 2);
-  return { startScale, startX, startY: padding };
+  if (!containerEl.value || !chartEl.value) return { startScale: 1, startX: 0, startY: padding };
+  const cW = containerEl.value.clientWidth;
+  const chartW = chartEl.value.offsetWidth;
+  const chartH = chartEl.value.offsetHeight;
+  if (cW <= 0 || chartW <= 0) return { startScale: 1, startX: 0, startY: padding };
+  const s = Math.min(1, (cW - padding * 2) / chartW);
+  const targetX = s < 1 ? padding : Math.max(padding, (cW - chartW) / 2);
+  // Correct for panzoom's 50%/50% transform-origin:
+  // top-left screen pos = (tx + chartW/2*(1-s), ty + chartH/2*(1-s))
+  // We want top-left at (targetX, padding), so:
+  const startX = targetX - (chartW / 2) * (1 - s);
+  const startY = padding - (chartH / 2) * (1 - s);
+  return { startScale: s, startX, startY };
 }
 
 async function initPanzoom(): Promise<void> {
-  if (!svgGroup.value || !container.value) return;
+  if (!chartEl.value || !containerEl.value) return;
   const { default: Panzoom } = await import('@panzoom/panzoom');
   if (wheelHandler) {
-    container.value.removeEventListener('wheel', wheelHandler);
+    containerEl.value.removeEventListener('wheel', wheelHandler);
     wheelHandler = null;
   }
   panzoomInstance?.destroy();
   const { startScale, startX, startY } = computeStartTransform();
-  panzoomInstance = Panzoom(svgGroup.value, {
+  panzoomInstance = Panzoom(chartEl.value, {
     maxScale: 5,
     minScale: 0.1,
     startScale,
@@ -489,7 +250,7 @@ async function initPanzoom(): Promise<void> {
   wheelHandler = (e: WheelEvent) => {
     panzoomInstance?.zoomWithWheel(e);
   };
-  container.value.addEventListener('wheel', wheelHandler, { passive: false });
+  containerEl.value.addEventListener('wheel', wheelHandler, { passive: false });
 }
 
 onMounted(async () => {
@@ -498,8 +259,8 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
-  if (wheelHandler && container.value) {
-    container.value.removeEventListener('wheel', wheelHandler);
+  if (wheelHandler && containerEl.value) {
+    containerEl.value.removeEventListener('wheel', wheelHandler);
   }
   panzoomInstance?.destroy();
 });
@@ -521,13 +282,33 @@ watch(() => props.showCoLeaders, async () => {
 });
 
 // ---------------------------------------------------------------------------
-// SVG export
+// SVG export via dom-to-svg
 // ---------------------------------------------------------------------------
 
-function exportSvg(): void {
-  if (!svgEl.value) return;
+async function exportSvg(): Promise<void> {
+  if (!chartEl.value) return;
+  const { elementToSVG, inlineResources } = await import('dom-to-svg');
+
+  // Neutral state: no highlight
+  const savedHighlight = highlightedPersonId.value;
+  highlightedPersonId.value = null;
+  await nextTick();
+
+  // Remove panzoom transform so export is full-diagram at 1:1
+  const savedTransform = chartEl.value.style.transform;
+  chartEl.value.style.transform = '';
+
+  const svgDoc = elementToSVG(chartEl.value);
+
+  // Restore state immediately (synchronous path done)
+  chartEl.value.style.transform = savedTransform;
+  highlightedPersonId.value = savedHighlight;
+
+  // Inline external resources (fonts, images) — async
+  await inlineResources(svgDoc);
+
   const serializer = new XMLSerializer();
-  const svgStr = serializer.serializeToString(svgEl.value);
+  const svgStr = serializer.serializeToString(svgDoc.documentElement);
   const blob = new Blob([svgStr], { type: 'image/svg+xml' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -540,12 +321,4 @@ function exportSvg(): void {
 defineExpose({ exportSvg });
 </script>
 
-<style scoped>
-.org-chart-container {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  position: relative;
-  outline: none;
-}
-</style>
+<style src="./OrgChart.css" scoped></style>

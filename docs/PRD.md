@@ -60,7 +60,7 @@ The application replaces a legacy CLI proof-of-concept (GraphML export for yEd) 
 
 - ✅ Fetch organigram data from ChurchTools API (triggered manually)
 - ✅ Persist fetched data as `organigram.json`
-- ✅ Render organigram as custom interactive SVG (no d3-org-chart)
+- ✅ Render organigram as interactive HTML diagram
 - ✅ Pan and zoom the SVG diagram
 - ✅ Download diagram as SVG file
 - ✅ Upload an existing `organigram.json` file
@@ -78,7 +78,7 @@ The application replaces a legacy CLI proof-of-concept (GraphML export for yEd) 
 - ✅ Hono backend serving both API and static client build
 - ✅ Vue 3 + Vuetify 3 frontend
 - ✅ Zod schema validation on all API boundaries
-- ✅ Unit tests for fetcher transform logic and SVG layout algorithm
+- ✅ Unit tests for fetcher transform logic and tree builder
 - ✅ Single `config.json` for all settings
 - ✅ `data/` directory mounted as Docker volume
 
@@ -168,7 +168,7 @@ src/
     App.vue
     components/
       Toolbar.vue
-      OrgChart.vue            # Custom SVG renderer
+      OrgChart.vue            # HTML renderer with dom-to-svg export
       ConfigEditor.vue        # Display settings drawer
       FetchConfigDialog.vue   # Fetch/filter settings modal
       ConfirmDialog.vue
@@ -176,7 +176,7 @@ src/
       useOrganigram.ts
       useConfig.ts
     lib/
-      orgChartLayout.ts       # Pure layout algorithm (testable, no DOM)
+      orgChartLayout.ts       # Pure tree builder (testable, no DOM)
       orgChartLayout.test.ts  # Unit tests for layout math
     plugins/
       vuetify.ts
@@ -189,7 +189,7 @@ data/
 
 - **Shared types:** `src/shared/types.ts` is imported by both server and client. Zod schemas in `src/shared/schemas.ts` are the single source of truth for validation.
 - **Display/fetch separation:** `showCoLeaders` and `showInactiveGroups` are display-only toggles stored in config. The fetcher always stores full data (all co-leaders, all inactive groups). The renderer filters at render time.
-- **Pure layout algorithm:** SVG node positioning is computed in `orgChartLayout.ts` with no DOM or Vue dependencies, enabling unit testing with Vitest.
+- **Pure tree builder:** `orgChartLayout.ts` builds an `OrgTree` data structure (`buildOrgTree`) with no DOM or Vue dependencies, enabling unit testing with Vitest. The HTML renderer handles all visual layout via CSS flex.
 - **Config panel duality:** Both the settings drawer (ConfigEditor) and the fetch dialog (FetchConfigDialog) hold a full deep copy of `AppConfig` as local state. Each renders only its relevant subset of fields. Saving emits the full config, so no fields are ever silently dropped.
 
 ---
@@ -220,7 +220,7 @@ data/
 
 **Co-leaders:** Always stored in `organigram.json`, regardless of `showCoLeaders` config.
 
-### 7.2 Custom SVG Renderer
+### 7.2 HTML Renderer with SVG Export
 
 **Layout (top-anchored, compact columns):**
 
@@ -230,28 +230,30 @@ data/
   [L2-A]            [L2-B]
   [L3-A1]           [L3-B1]
   [L3-A2]           [L3-B2]
-    [L4-A2a]
-    [L4-A2b]
-    [L4-A2c ...]      ← has level-5 children → tooltip on hover
+    • L4-A2a  [Leader] [Co-leader]
+    • L4-A2b  [Leader]
+    • L4-A2c +2  [Leader]   ← +N = hidden level-5 children count
 ```
 
-- **Level 1** (root): centered horizontally at the top
-- **Level 2**: one node per column, spread horizontally below root
-- **Level 3**: stacked vertically below their level-2 column header
-- **Level 4**: subboxes stacked vertically inside the level-3 box
-- **Level 5+**: not rendered; level-4 boxes that have children show `...` right-aligned with a Vuetify tooltip listing level-5 group names
+- **Level 1** (root): centered horizontally at the top via `display: flex; justify-content: center`
+- **Level 2**: one card per column, spread horizontally below root via `display: flex; gap: 16px`
+- **Level 3**: stacked vertically below their level-2 column via `flex-direction: column; gap: 6px`
+- **Level 4**: inline items inside level-3 box — colored dot + label box + optional `+N` + person pills, all via `display: flex; flex-wrap: wrap`
+- **Level 5+**: not rendered; level-4 items with children show `+N` (count of hidden children)
 
-**Node rendering (pure SVG, no `<foreignObject>`):**
-- `<rect>` for card background + border
-- `<rect>` for colored header strip (group-type color)
-- `<text>` for group name
-- Per person: `<rect>` (pill) + `<text>` — leaders and co-leaders styled differently
+**Node rendering (HTML+CSS, all colors as inline styles):**
+- `<div>` for card with border, border-radius, background
+- Colored header `<div>` with group-type background color
+- Per person: styled `<div>` pill with cursor pointer — leaders and co-leaders styled differently
+- L4 items: `<span>` dot + label box + person pills flowing inline
 
-**Inactive nodes:** When `showInactiveGroups` is true, inactive nodes render with gray header color and reduced opacity. When false, inactive nodes are excluded from rendering entirely.
+**Inactive nodes:** When `showInactiveGroups` is true, inactive nodes render with gray header color and 50% opacity. When false, excluded entirely by `buildOrgTree`.
 
-**Pan/zoom:** `@panzoom/panzoom` applied to the SVG element.
+**Pan/zoom:** `@panzoom/panzoom` applied to the chart HTML `<div>`. Initial pan position corrected for panzoom's 50%/50% CSS transform-origin (`startX = targetX − chartW/2·(1−s)`).
 
-**SVG export:** `XMLSerializer.serializeToString(svgEl)` → Blob → download.
+**SVG export:** `elementToSVG(chartEl)` from `dom-to-svg` (true vector SVG — `<rect>`, `<text>`, `<path>`) → `inlineResources(svgDoc)` (inlines fonts) → Blob → download. Export renders in neutral state (no highlight, no panzoom transform) at full 1:1 diagram scale.
+
+**Font:** Roboto loaded via `@fontsource/roboto` (self-hosted, no Google Fonts CDN dependency). All `font-family` declarations fall back to `Arial, sans-serif`.
 
 ### 7.3 Person Highlight
 
@@ -308,7 +310,9 @@ Side drawer (`v-navigation-drawer`) opened from a toolbar icon.
 | Vue 3 | 3.4+ | UI framework |
 | Vuetify | 3.6+ | Component library + theming |
 | @mdi/font | latest | Material Design icons |
-| @panzoom/panzoom | 4.x | SVG pan/zoom |
+| @panzoom/panzoom | 4.x | HTML diagram pan/zoom |
+| dom-to-svg | 0.12+ | True vector SVG export from HTML |
+| @fontsource/roboto | 5.x | Self-hosted Roboto font |
 | Vite | 5.3+ | Build tool + dev server |
 
 ### Testing
@@ -476,7 +480,7 @@ The MVP is successful when a church administrator can:
 
 ### Quality Indicators
 
-- Layout algorithm unit tests cover all level assignments and geometry invariants
+- Tree builder unit tests cover all level assignments, hidden-children handling, and inactive-node filtering
 - No use of `d3-org-chart` or other charting libraries for layout
 - `organigram.json` stores all nodes including level 5+ (display truncation only)
 - `showCoLeaders` does not affect what is stored in `organigram.json`
@@ -549,6 +553,26 @@ The MVP is successful when a church administrator can:
 
 ---
 
+### Phase E — HTML Rendering + dom-to-svg Export
+
+**Goal:** Replace custom SVG renderer with HTML+CSS rendering for natural flow layout (especially L4 pill wrapping). Keep true vector SVG export via dom-to-svg.
+
+**Deliverables:**
+- ✅ `npm install dom-to-svg @fontsource/roboto`
+- ✅ `src/client/main.ts`: add `@fontsource/roboto/400.css` and `@fontsource/roboto/500.css` imports
+- ✅ `src/client/lib/orgChartLayout.ts`: replace geometry layout engine with lean tree builder (`buildOrgTree`)
+- ✅ `src/client/lib/orgChartLayout.test.ts`: rewrite tests for `buildOrgTree`
+- ✅ `src/client/components/OrgChart.vue`: full rewrite — HTML flex layout, inline `:style` bindings for all colors, panzoom on HTML div with corrected 50%/50% origin math, dom-to-svg export
+
+**Key technical decisions:**
+- All colors applied as inline styles (not CSS variables) to work around dom-to-svg bug #201
+- L4 pill wrapping delegated to CSS `flex-wrap` — no manual char-count estimation needed
+- Export: clear highlight → remove transform → `elementToSVG` → restore → `inlineResources` → download
+
+**Validation:** `npm test` — 46 tests pass. `npm run typecheck` — clean.
+
+---
+
 ## 13. Future Considerations
 
 - **Scheduled auto-fetch:** Cron-triggered fetch at a configurable interval, so the diagram is always current without manual action.
@@ -570,8 +594,8 @@ The MVP is successful when a church administrator can:
 *Mitigation:* The `shouldContinuePaging` function is unit-tested against pagination metadata. Add a warning log when the fetched count differs from the expected total.
 
 **R2: SVG export fidelity**
-*Risk:* The exported SVG renders differently when opened in tools like Inkscape or browsers due to missing font references or unsupported SVG features.
-*Mitigation:* Use only SVG 1.1 primitives. Inline font family names (Roboto, Arial, sans-serif) as fallback chains. Test export in Chrome, Firefox, and Inkscape before release.
+*Risk:* The exported SVG renders differently when opened in tools like Inkscape or browsers due to missing font references or unsupported CSS in dom-to-svg output.
+*Mitigation:* Use `inlineResources()` to embed Roboto font data directly into the SVG. All colors are applied as inline styles (not CSS variables) to avoid dom-to-svg bug #201. Export uses neutral state (no highlight, no transform) for consistent output. Test export in Chrome, Firefox, and Inkscape before release.
 
 **R3: Large diagrams (100+ nodes) performance**
 *Risk:* A church with many groups produces a diagram that is slow to lay out and render in the browser.
@@ -601,7 +625,9 @@ The MVP is successful when a church administrator can:
 | `zod` | Schema validation | https://zod.dev |
 | `vue` | Frontend framework | https://vuejs.org |
 | `vuetify` | UI component library | https://vuetifyjs.com |
-| `@panzoom/panzoom` | SVG pan/zoom | https://github.com/timmywil/panzoom |
+| `@panzoom/panzoom` | HTML diagram pan/zoom | https://github.com/timmywil/panzoom |
+| `dom-to-svg` | True vector SVG export from HTML | https://github.com/nicolo-ribaudo/dom-to-svg |
+| `@fontsource/roboto` | Self-hosted Roboto font | https://fontsource.org/fonts/roboto |
 | `vite` | Build tool | https://vitejs.dev |
 | `vitest` | Test runner | https://vitest.dev |
 

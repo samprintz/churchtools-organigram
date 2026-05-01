@@ -37,44 +37,6 @@
         hide-details
         class="mb-4"
       />
-
-      <template v-if="localConfig.groupTypes.length > 0">
-        <v-divider class="my-3" />
-        <div class="text-caption text-medium-emphasis mb-2">Group Type Colors</div>
-        <div
-          v-for="(gt, gtIdx) in localConfig.groupTypes"
-          :key="gtIdx"
-          class="d-flex align-center mb-2 gap-2"
-        >
-          <v-text-field
-            v-model="gt.name"
-            label="Name"
-            density="compact"
-            variant="outlined"
-            hide-details
-            class="flex-grow-1"
-          />
-          <div
-            :style="{ width: '32px', height: '32px', borderRadius: '4px', background: gt.color, border: '1px solid rgba(128,128,128,0.4)', cursor: 'pointer', flexShrink: 0 }"
-            @click="openColorPicker(gtIdx)"
-          />
-          <input
-            :ref="(el) => setColorInputRef(el, gtIdx)"
-            type="color"
-            :value="gt.color"
-            style="position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;"
-            @input="onColorInput(gtIdx, $event)"
-          />
-        </div>
-      </template>
-
-      <v-alert v-if="saveError" type="error" density="compact" class="mb-3">
-        {{ saveError }}
-      </v-alert>
-
-      <v-btn color="primary" block :loading="saving" class="mt-4" @click="save">
-        Save
-      </v-btn>
     </div>
 
     <div v-else class="pa-4 text-center text-medium-emphasis">
@@ -91,8 +53,6 @@ const model = defineModel<boolean>({ required: true });
 
 const props = defineProps<{
   config: AppConfig;
-  saving: boolean;
-  saveError: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -106,37 +66,30 @@ const themeOptions = [
 ];
 
 const localConfig = ref<AppConfig | null>(null);
-const colorInputRefs = ref<Record<number, HTMLInputElement>>({});
-
-function setColorInputRef(el: unknown, idx: number): void {
-  if (el instanceof HTMLInputElement) {
-    colorInputRefs.value[idx] = el;
-  }
-}
-
-function openColorPicker(idx: number): void {
-  colorInputRefs.value[idx]?.click();
-}
-
-function onColorInput(idx: number, event: Event): void {
-  if (!localConfig.value) return;
-  const input = event.target as HTMLInputElement;
-  localConfig.value.groupTypes[idx].color = input.value;
-}
+const skipNextSave = ref(false);
 
 watch(
   () => props.config,
   (newConfig) => {
     if (newConfig) {
+      skipNextSave.value = true;
       localConfig.value = JSON.parse(JSON.stringify(newConfig)) as AppConfig;
     }
   },
   { immediate: true },
 );
 
-function save(): void {
-  if (localConfig.value) {
-    emit('save', localConfig.value);
-  }
-}
+watch(
+  localConfig,
+  (newConfig) => {
+    if (skipNextSave.value) {
+      skipNextSave.value = false;
+      return;
+    }
+    if (newConfig) {
+      emit('save', newConfig);
+    }
+  },
+  { deep: true },
+);
 </script>

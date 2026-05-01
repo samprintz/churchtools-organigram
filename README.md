@@ -5,9 +5,9 @@ A self-hosted web application that fetches organizational structure data from Ch
 ## Features
 
 - Fetch organigram data from ChurchTools with one click
-- Interactive SVG diagram with pan and zoom
+- Interactive HTML diagram with pan and zoom
 - Person highlight: click any person to see all their roles across the diagram
-- Download the diagram as an SVG file
+- Download the diagram as a true vector SVG file (via dom-to-svg)
 - Upload a previously saved `organigram.json`
 - Configurable group types, status filters, and tags
 - Light / dark / system theme

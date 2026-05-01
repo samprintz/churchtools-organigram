@@ -24,6 +24,7 @@ export interface CTGroup {
   information: {
     groupTypeId: number;
     groupStatusId: number;
+    color?: string;
     tags?: Array<{ id: number; name: string }>;
   };
 }
@@ -271,6 +272,7 @@ export function transformToOrgChart(
       parentId,
       name: sanitizeName(group.name),
       groupTypeId: group.information.groupTypeId,
+      ...(group.information.color && { color: group.information.color }),
       ...(inactive && { inactive }),
       leaders,
       coLeaders,

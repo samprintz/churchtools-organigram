@@ -10,8 +10,8 @@ import { shouldContinuePaging, transformToOrgChart } from './churchtools.js';
 const config: AppConfig = {
   rootGroupId: 1,
   groupTypes: [
-    { id: 4, name: 'Leitung', color: '#1976D2', leaderRoleIds: [1], coLeaderRoleIds: [2] },
-    { id: 7, name: 'Dienst', color: '#388E3C', leaderRoleIds: [1], coLeaderRoleIds: [2] },
+    { id: 4, leaderRoleIds: [1], coLeaderRoleIds: [2] },
+    { id: 7, leaderRoleIds: [1], coLeaderRoleIds: [2] },
   ],
   showCoLeaders: true,
   showInactiveGroups: true,
@@ -23,9 +23,9 @@ const config: AppConfig = {
 };
 
 const groups: CTGroup[] = [
-  { id: 1, name: 'Leitung', information: { groupTypeId: 4, groupStatusId: 1 } }, // root (by ID)
-  { id: 2, name: 'Anbetung', information: { groupTypeId: 4, groupStatusId: 1 } }, // relevant type
-  { id: 3, name: 'Lobpreis', information: { groupTypeId: 7, groupStatusId: 1 } }, // child of Anbetung
+  { id: 1, name: 'Leitung', information: { groupTypeId: 4, groupStatusId: 1, color: 'sky' } }, // root (by ID)
+  { id: 2, name: 'Anbetung', information: { groupTypeId: 4, groupStatusId: 1, color: 'lime' } }, // relevant type
+  { id: 3, name: 'Lobpreis', information: { groupTypeId: 7, groupStatusId: 1 } }, // child of Anbetung, no color
   { id: 4, name: 'Technik', information: { groupTypeId: 7, groupStatusId: 1 } }, // child of Anbetung
   { id: 5, name: 'Verwaltung', information: { groupTypeId: 99, groupStatusId: 1 } }, // irrelevant type, no tags → excluded
   {
@@ -234,6 +234,16 @@ describe('transformToOrgChart', () => {
     };
     const result = transformToOrgChart(groups, persons, members, hierarchies, emptyConfig);
     expect(result.nodes).toHaveLength(0);
+  });
+
+  it('propagates color from group information to the node', () => {
+    const result = transformToOrgChart(groups, persons, members, hierarchies, config);
+    const leitung = result.nodes.find((n) => n.id === 'group-1')!;
+    const anbetung = result.nodes.find((n) => n.id === 'group-2')!;
+    const lobpreis = result.nodes.find((n) => n.id === 'group-3')!;
+    expect(leitung.color).toBe('sky');
+    expect(anbetung.color).toBe('lime');
+    expect(lobpreis.color).toBeUndefined();
   });
 
   it('only assigns leader roles belonging to the matching group type', () => {

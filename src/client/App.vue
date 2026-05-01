@@ -24,12 +24,10 @@
     <ConfigEditor
       v-model="configDrawerOpen"
       :config="config"
-      :saving="configLoading"
-      :save-error="configSaveError"
       @save="onSaveConfig"
     />
 
-    <v-main style="height: 100vh; overflow: hidden;">
+    <v-main class="main-fullscreen">
       <v-progress-linear v-if="orgLoading" indeterminate color="primary" />
       <!-- Config invalid banner -->
       <v-alert
@@ -54,13 +52,12 @@
       </v-alert>
 
       <!-- Organigram -->
-      <div v-if="organigram && !renderError" style="width: 100%; height: 100%;">
+      <div v-if="organigram && !renderError" class="w-100 h-100">
         <OrgChart
           ref="orgChart"
           :data="organigram"
           :show-co-leaders="config.showCoLeaders"
           :show-inactive-groups="config.showInactiveGroups"
-          :group-types="config.groupTypes"
           @render-error="onRenderError"
         />
       </div>
@@ -132,7 +129,6 @@ const { config, loading: configLoading, error: configError, configInvalid, loadC
 const vTheme = useTheme();
 const configDrawerOpen = ref(false);
 const fetchConfigOpen = ref(false);
-const configSaveError = ref<string | null>(null);
 const fetchConfigError = ref<string | null>(null);
 const renderError = ref<string | null>(null);
 const orgChart = ref<InstanceType<typeof OrgChart> | null>(null);
@@ -182,12 +178,10 @@ function onDownloadSvg(): void {
 }
 
 async function onSaveConfig(newConfig: AppConfig): Promise<void> {
-  configSaveError.value = null;
   try {
     await saveConfig(newConfig);
-    configDrawerOpen.value = false;
-  } catch (e) {
-    configSaveError.value = e instanceof Error ? e.message : 'Failed to save config';
+  } catch {
+    // error displayed via configError from useConfig
   }
 }
 
@@ -232,3 +226,10 @@ async function onHiddenFileChange(event: Event): Promise<void> {
   }
 }
 </script>
+
+<style scoped>
+.main-fullscreen {
+  height: 100vh;
+  overflow: hidden;
+}
+</style>

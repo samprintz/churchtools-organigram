@@ -11,6 +11,7 @@ export const orgNodeSchema = z.object({
   parentId: z.string().nullable(),
   name: z.string(),
   groupTypeId: z.number(),
+  color: z.string().optional(),
   inactive: z.boolean().optional(),
   leaders: z.array(personSchema),
   coLeaders: z.array(personSchema),
@@ -24,8 +25,6 @@ export const orgChartFileSchema = z.object({
 
 export const groupTypeConfigSchema = z.object({
   id: z.number(),
-  name: z.string(),
-  color: z.string(),
   leaderRoleIds: z.array(z.number()),
   coLeaderRoleIds: z.array(z.number()),
 });

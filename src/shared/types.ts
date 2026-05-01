@@ -9,6 +9,7 @@ export interface OrgNode {
   parentId: string | null; // null = root node
   name: string;
   groupTypeId: number;
+  color?: string; // ChurchTools color string, e.g. "sky", "lime"
   inactive?: boolean;
   leaders: Person[];
   coLeaders: Person[];
@@ -22,8 +23,6 @@ export interface Person {
 
 export interface GroupTypeConfig {
   id: number;
-  name: string;
-  color: string; // hex color for node header, e.g. "#1976D2"
   leaderRoleIds: number[];
   coLeaderRoleIds: number[];
 }
