@@ -1,3 +1,5 @@
 .env
-js/node_modules
-js/package-lock.json
+node_modules
+dist
+.git
+*.md

@@ -1,9 +1,23 @@
-FROM node:latest
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
-COPY ./app /app
+COPY package*.json ./
+RUN npm ci
 
-RUN npm install
+COPY . .
+RUN npm run build
 
-CMD npm start
+# ---- runtime ----
+FROM node:20-alpine AS runtime
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+COPY --from=build /app/dist ./dist
+COPY data/config.json ./data/config.json
+
+EXPOSE 3000
+CMD ["node", "dist/server/index.js"]

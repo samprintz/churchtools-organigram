@@ -1,8 +1,8 @@
 .idea
 *.graphml
 *.pdf
+data
 .env
-*/.env
-app/node_modules
-app/package-lock.json
-nodejs_code/node_modules/
+dist
+node_modules
+package-lock.json

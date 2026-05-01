@@ -1,31 +1,67 @@
-# Churchtools Organigram
-## Introduction
-This is a small NodeJS Script that extracts data from ChurchTools and exports it as a organigram.
+# ChurchTools Organigram
 
-## Code Quality
-This was written as a proof of concept.
-It works, but it ain't no beautiful code (#spaghetti)
+A self-hosted web application that fetches organizational structure data from ChurchTools and renders it as an interactive, printable organigram.
 
-## How to Use
-### Docker
-The easiest way to use this script is via docker.
-Just install docker and docker compose, copy the `.env.example` file to `.env`, add your churchtools credentials and run `run.sh`.
+## Features
 
-### Manual
-Just npm install, copy `.env.example` to `./app/.env` and run it with npm run.
-This way is not officially supported.
+- Fetch organigram data from ChurchTools with one click
+- Interactive SVG diagram with pan and zoom
+- Person highlight: click any person to see all their roles across the diagram
+- Download the diagram as an SVG file
+- Upload a previously saved `organigram.json`
+- Configurable group types, status filters, and tags
+- Light / dark / system theme
+- Show or hide co-leaders and inactive groups
 
-### Making the Output readable
-After running the script you will then find the generated mindmaps in the `./output` folder.
+## Requirements
 
-Open it in the Software yED and choose the Auto-Layout feature you want.
+- Docker and Docker Compose
+- A ChurchTools instance with API access
+- Traefik + Authelia (or equivalent) for authentication
 
-### Advanced Visualization
-For advanced automatic vizualisations one can use [Gephi](https://gephi.org/).
-To import the file to gephi, an additional step is necessary.
-To import the generated graph in gephi, just open the exported file in yED and export it to a `.gml` file.
-You can then import it into Gephi.
+## Setup
 
-## Contributing
-If you improve something, please open a Pull Request.
-If you find any bugs, please open an Issue.
+### 1. Configure credentials
+
+Copy `.env.example` to `.env` and fill in your ChurchTools credentials:
+
+```dotenv
+CT_BASEURL=https://your-instance.church.tools
+CT_EMAIL=admin@example.com
+CT_PASSWORD=secret
+```
+
+### 2. Create a data directory
+
+The application stores `config.json` and `organigram.json` in a `data/` directory that must be mounted as a Docker volume. Create it on the host:
+
+```bash
+mkdir -p data
+```
+
+### 3. Run with Docker Compose
+
+```bash
+docker compose up -d
+```
+
+The application listens on port 3000. Route it through Traefik + Authelia for authentication.
+
+## Development
+
+```bash
+npm install
+npm run dev       # starts Vite dev server + Hono server concurrently
+npm test          # run unit tests
+npm run typecheck # TypeScript check (no emit)
+npm run build     # compile server + bundle client
+```
+
+## Configuration
+
+All settings are stored in `data/config.json` and can be edited via the web UI:
+
+- **Fetch Settings** (toolbar button): root group ID, group types, status filters, include/exclude tags
+- **Display Settings** (toolbar button): show/hide co-leaders, show/hide inactive groups, theme, per-type colors
+
+Credentials (`CT_BASEURL`, `CT_EMAIL`, `CT_PASSWORD`) are read from `.env` at fetch time and never stored in `config.json`.

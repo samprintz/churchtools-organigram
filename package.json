@@ -1,0 +1,35 @@
+{
+  "name": "churchtools-organigram",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev:server": "tsx watch src/server/index.ts",
+    "dev:client": "vite",
+    "dev": "concurrently -n server,client -c blue,green \"npm run dev:server\" \"npm run dev:client\"",
+    "build:server": "tsc -p tsconfig.server.json",
+    "build:client": "vite build",
+    "build": "npm run build:server && npm run build:client",
+    "start": "node dist/server/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.server.json"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.12.0",
+    "@mdi/font": "^7.4.47",
+    "d3-org-chart": "^3.1.0",
+    "dotenv": "^16.4.5",
+    "hono": "^4.6.0",
+    "vue": "^3.4.29",
+    "vuetify": "^3.6.11",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@vitejs/plugin-vue": "^5.0.5",
+    "concurrently": "^8.2.2",
+    "tsx": "^4.16.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.3.1",
+    "vitest": "^2.0.0"
+  }
+}
