@@ -1,5 +1,5 @@
 services:
-  organigram:
+  churchtools-organigram:
     build: .
     env_file: .env
     ports:
