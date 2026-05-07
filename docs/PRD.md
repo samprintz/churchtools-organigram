@@ -64,6 +64,7 @@ The application replaces a legacy CLI proof-of-concept (GraphML export for yEd) 
 - ✅ Pan and zoom the SVG diagram
 - ✅ Download diagram as SVG file
 - ✅ Upload an existing `organigram.json` file
+  (currently only logic provided; no toolbar button)
 - ✅ Display fetch/filter settings in a modal dialog
 - ✅ Display rendering/display settings in a side drawer
 - ✅ Light / dark / system theme
@@ -108,7 +109,7 @@ As a church staff member, I want to open the web app and immediately see the cur
 
 **US-2: Refresh from ChurchTools**
 As an administrator, I want to trigger a fresh fetch from ChurchTools with one click, so that the diagram reflects the latest group and membership data.
-> *Example: I click "Fetch from ChurchTools" in the toolbar. If a diagram already exists I confirm the overwrite. The new diagram is displayed within seconds.*
+> *Example: I click "Update" in the toolbar. If a diagram already exists I confirm the overwrite. The new diagram is displayed within seconds.*
 
 **US-3: Find where a person leads**
 As a church leader, I want to click on a person's name in the diagram and see all nodes where they appear highlighted, so that I can quickly understand someone's full involvement across all groups.

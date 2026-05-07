@@ -2,7 +2,7 @@
   <v-app-bar elevation="2">
     <v-app-bar-title>
       <v-icon icon="mdi-sitemap" class="me-2" />
-      ChurchTools Organigram
+      ChurchTools Organigramm
     </v-app-bar-title>
 
     <template #append>
@@ -12,7 +12,7 @@
           :loading="loading"
           @click="emit('fetch')"
         >
-          Fetch
+          Update
         </v-btn>
         <v-btn
           icon="mdi-cog-outline"
@@ -21,12 +21,6 @@
         />
       </v-btn-group>
 
-      <v-btn
-        icon="mdi-upload-outline"
-        variant="text"
-        title="Upload JSON"
-        @click="triggerUpload"
-      />
       <input
         ref="fileInput"
         type="file"
@@ -37,14 +31,6 @@
 
       <v-btn
         icon="mdi-download-outline"
-        variant="text"
-        title="Download JSON"
-        :disabled="!hasData"
-        @click="emit('download-json')"
-      />
-
-      <v-btn
-        icon="mdi-image-outline"
         variant="text"
         title="Download SVG"
         :disabled="!hasData"
