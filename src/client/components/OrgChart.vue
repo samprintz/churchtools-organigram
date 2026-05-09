@@ -143,8 +143,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import type Panzoom from '@panzoom/panzoom';
-import type { OrgChartFile, OrgNode, Person } from '../../../shared/types';
-import { buildOrgTree } from '../lib/orgChartLayout';
+import type { OrgChartFile, OrgNode, Person } from '../../shared/types';
+import { buildOrgTree, orgTreeToMarkdown } from '../lib/orgChartLayout';
 import { ctColorToHex } from '../lib/chartColors';
 
 const props = defineProps<{
@@ -282,6 +282,22 @@ watch(() => props.showCoLeaders, async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Markdown export
+// ---------------------------------------------------------------------------
+
+function exportMarkdown(): void {
+  if (!tree.value) return;
+  const md = orgTreeToMarkdown(tree.value, props.showCoLeaders);
+  const blob = new Blob([md], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'organigram.md';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---------------------------------------------------------------------------
 // SVG export via dom-to-svg
 // ---------------------------------------------------------------------------
 
@@ -318,7 +334,7 @@ async function exportSvg(): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
-defineExpose({ exportSvg });
+defineExpose({ exportSvg, exportMarkdown });
 </script>
 
 <style src="./OrgChart.css" scoped></style>

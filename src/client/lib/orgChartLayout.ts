@@ -1,4 +1,4 @@
-import type { OrgNode } from '../../shared/types.js';
+import type { OrgNode, Person } from '../../shared/types.js';
 
 export interface OrgTreeNode {
   node: OrgNode;
@@ -38,4 +38,49 @@ export function buildOrgTree(nodes: OrgNode[], showInactiveGroups: boolean): Org
 
   const root = buildNode(rootNode, 1);
   return { root, columns: root.children };
+}
+
+// ---------------------------------------------------------------------------
+// Markdown serialisation
+// ---------------------------------------------------------------------------
+
+function formatPersons(
+  leaders: Person[],
+  coLeaders: Person[],
+  showCoLeaders: boolean,
+): string {
+  const all = [...leaders, ...(showCoLeaders ? coLeaders : [])];
+  if (all.length === 0) return '';
+  return ` (${all.map((p) => `${p.firstName} ${p.lastName}`).join(', ')})`;
+}
+
+export function orgTreeToMarkdown(
+  tree: OrgTree,
+  showCoLeaders: boolean,
+): string {
+  const lines: string[] = [];
+  const r = tree.root.node;
+  lines.push(
+    `# ${r.name}${formatPersons(r.leaders, r.coLeaders, showCoLeaders)}`,
+  );
+  lines.push('');
+  for (const col of tree.columns) {
+    const cn = col.node;
+    lines.push(
+      `- **${cn.name}**${formatPersons(cn.leaders, cn.coLeaders, showCoLeaders)}`,
+    );
+    for (const l3 of col.children) {
+      const l3n = l3.node;
+      lines.push(
+        `  - **${l3n.name}**${formatPersons(l3n.leaders, l3n.coLeaders, showCoLeaders)}`,
+      );
+      for (const l4 of l3.children) {
+        const l4n = l4.node;
+        lines.push(
+          `    - ${l4n.name}${formatPersons(l4n.leaders, l4n.coLeaders, showCoLeaders)}`,
+        );
+      }
+    }
+  }
+  return lines.join('\n');
 }

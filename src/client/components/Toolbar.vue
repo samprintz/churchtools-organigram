@@ -38,6 +38,14 @@
       />
 
       <v-btn
+        icon="mdi-language-markdown-outline"
+        variant="text"
+        title="Download Markdown"
+        :disabled="!hasData"
+        @click="emit('download-markdown')"
+      />
+
+      <v-btn
         icon="mdi-tune"
         variant="text"
         title="Display Settings"
@@ -60,6 +68,7 @@ const emit = defineEmits<{
   upload: [file: File];
   'download-json': [];
   'download-svg': [];
+  'download-markdown': [];
   'toggle-config': [];
   'toggle-fetch-config': [];
 }>();

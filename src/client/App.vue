@@ -7,6 +7,7 @@
       @upload="onUpload"
       @download-json="orgDownloadJson()"
       @download-svg="onDownloadSvg"
+      @download-markdown="onDownloadMarkdown"
       @toggle-config="configDrawerOpen = !configDrawerOpen"
       @toggle-fetch-config="fetchConfigOpen = !fetchConfigOpen"
     />
@@ -175,6 +176,10 @@ async function onUpload(file: File): Promise<void> {
 
 function onDownloadSvg(): void {
   orgChart.value?.exportSvg();
+}
+
+function onDownloadMarkdown(): void {
+  orgChart.value?.exportMarkdown();
 }
 
 async function onSaveConfig(newConfig: AppConfig): Promise<void> {

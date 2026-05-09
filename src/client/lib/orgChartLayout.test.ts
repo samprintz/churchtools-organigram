@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { OrgNode } from '../../shared/types.js';
-import { buildOrgTree } from './orgChartLayout.js';
+import type { OrgNode, Person } from '../../shared/types.js';
+import { buildOrgTree, orgTreeToMarkdown } from './orgChartLayout.js';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -130,5 +130,78 @@ describe('buildOrgTree', () => {
   it('returns null when root itself is inactive and showInactiveGroups is false', () => {
     const inactiveRoot = makeNode({ id: 'group-1', parentId: null, inactive: true });
     expect(buildOrgTree([inactiveRoot], false)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// orgTreeToMarkdown
+// ---------------------------------------------------------------------------
+
+function makePerson(id: number, firstName: string, lastName: string): Person {
+  return { id, firstName, lastName };
+}
+
+describe('orgTreeToMarkdown', () => {
+  it('renders root-only tree as a single heading', () => {
+    const tree = buildOrgTree([root], true)!;
+    expect(orgTreeToMarkdown(tree, false)).toBe('# group-1\n');
+  });
+
+  it('includes root leader in heading', () => {
+    const rootWithLeader = makeNode({
+      id: 'group-1',
+      name: 'Church',
+      leaders: [makePerson(1, 'Anna', 'Müller')],
+    });
+    const tree = buildOrgTree([rootWithLeader], true)!;
+    expect(orgTreeToMarkdown(tree, false)).toBe('# Church (Anna Müller)\n');
+  });
+
+  it('renders full tree with correct indentation', () => {
+    const tree = buildOrgTree(
+      [root, l2a, l2b, l3a, l3b, l4a, l4b],
+      true,
+    )!;
+    const md = orgTreeToMarkdown(tree, false);
+    const lines = md.split('\n');
+    expect(lines[0]).toBe('# group-1');
+    expect(lines[1]).toBe('');
+    expect(lines[2]).toBe('- **group-2**');
+    expect(lines[3]).toBe('  - **group-4**');
+    expect(lines[4]).toBe('    - group-6');
+    expect(lines[5]).toBe('    - group-7');
+    expect(lines[6]).toBe('  - **group-5**');
+    expect(lines[7]).toBe('- **group-3**');
+  });
+
+  it('omits co-leaders when showCoLeaders is false', () => {
+    const node = makeNode({
+      id: 'group-1',
+      name: 'Root',
+      leaders: [makePerson(1, 'Anna', 'Müller')],
+      coLeaders: [makePerson(2, 'Max', 'Schmidt')],
+    });
+    const tree = buildOrgTree([node], true)!;
+    expect(orgTreeToMarkdown(tree, false)).toBe('# Root (Anna Müller)\n');
+  });
+
+  it('includes co-leaders when showCoLeaders is true', () => {
+    const node = makeNode({
+      id: 'group-1',
+      name: 'Root',
+      leaders: [makePerson(1, 'Anna', 'Müller')],
+      coLeaders: [makePerson(2, 'Max', 'Schmidt')],
+    });
+    const tree = buildOrgTree([node], true)!;
+    expect(orgTreeToMarkdown(tree, true)).toBe(
+      '# Root (Anna Müller, Max Schmidt)\n',
+    );
+  });
+
+  it('omits person brackets when a node has no persons', () => {
+    const tree = buildOrgTree([root, l2a], true)!;
+    const lines = orgTreeToMarkdown(tree, true).split('\n');
+    expect(lines[0]).toBe('# group-1');
+    expect(lines[2]).toBe('- **group-2**');
   });
 });

@@ -63,6 +63,7 @@ The application replaces a legacy CLI proof-of-concept (GraphML export for yEd) 
 - ✅ Render organigram as interactive HTML diagram
 - ✅ Pan and zoom the SVG diagram
 - ✅ Download diagram as SVG file
+- ✅ Download diagram as Markdown file (indented bullet points)
 - ✅ Upload an existing `organigram.json` file
   (currently only logic provided; no toolbar button)
 - ✅ Display fetch/filter settings in a modal dialog
@@ -256,14 +257,40 @@ data/
 
 **Font:** Roboto loaded via `@fontsource/roboto` (self-hosted, no Google Fonts CDN dependency). All `font-family` declarations fall back to `Arial, sans-serif`.
 
-### 7.3 Person Highlight
+### 7.3 Markdown Export
+
+**Purpose:** Download the organigram tree as a Markdown file for use in
+docs or plain-text processing.
+
+**Format:**
+
+```markdown
+# Root Group (Leader)
+
+- **L2 Group (Leader, Co-leader)**
+  - **L3 Group (Leader)**
+    - L4 Group (Leader)
+```
+
+- Root → `# heading`
+- L2 and L3 → bold bullet points (`- **Name**`)
+- L4 → plain bullet points (`    - Name`)
+- All leaders and (when `showCoLeaders` is on) co-leaders are listed
+  together in a single parenthesised bracket after the group name,
+  comma-separated
+- Groups with no persons render without a bracket
+- `showCoLeaders` and `showInactiveGroups` from display settings are
+  respected: the export reflects the current visible state
+- Level 5+ nodes are not included (same as the visual diagram)
+
+### 7.4 Person Highlight
 
 - Click a person badge → compute the set of all node IDs where that person appears in `leaders` or (if `showCoLeaders` is on) `coLeaders`
 - Highlighted nodes get a distinct accent stroke (no dimming of others)
 - Clear: click same person again, click a different person (switches highlight), press ESC, or click the floating "Clear highlight" button
 - State: a single `highlightedPersonId: ref<number | null>` in the OrgChart component
 
-### 7.4 Config: Fetch/Filter Dialog
+### 7.5 Config: Fetch/Filter Dialog
 
 Modal dialog (`v-dialog`) opened from a toolbar button.
 
@@ -276,7 +303,7 @@ Modal dialog (`v-dialog`) opened from a toolbar button.
 
 **Actions:** Cancel | Save | Save and Fetch
 
-### 7.5 Config: Display Settings Drawer
+### 7.6 Config: Display Settings Drawer
 
 Side drawer (`v-navigation-drawer`) opened from a toolbar icon.
 
